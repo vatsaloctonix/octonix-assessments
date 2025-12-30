@@ -883,7 +883,7 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
               onClick={async () => {
                 await uploadCurrentRecording();
               }}
-              disabled={isSubmitted || videoState.isRecording || videoState.recordedBlobs.length === 0 || videoState.uploadProgress === "uploading"}
+              disabled={isSubmitted || videoState.isRecording || videoState.recordedBlobs.length === 0}
             >
               Retry upload
             </Button>
