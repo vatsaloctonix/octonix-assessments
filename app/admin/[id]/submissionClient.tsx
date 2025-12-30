@@ -100,7 +100,7 @@
             </div>
           )}
 
-          {item.ai_evaluations?.overall && (
+          {Boolean((item.ai_evaluations as any)?.overall) && (
             <div className="mt-4 rounded-2xl border border-black/10 p-4">
               <div className="text-sm font-semibold">AI Evaluation</div>
               <div className="mt-2 grid gap-2 md:grid-cols-2 text-sm">
