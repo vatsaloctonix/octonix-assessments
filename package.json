@@ -1,0 +1,33 @@
+{
+  "name": "octonix-assessment",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.1",
+    "clsx": "^2.1.1",
+    "next": "16.1.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "zod": "^3.23.8",
+    "@uiw/react-codemirror": "^4.23.10",
+    "@codemirror/lang-python": "^6.2.0",
+    "@codemirror/lang-java": "^6.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.1",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "16.1.0",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.16",
+    "typescript": "^5.7.2"
+  }
+}
