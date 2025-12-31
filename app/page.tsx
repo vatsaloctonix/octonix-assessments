@@ -1,5 +1,4 @@
 import { OctonixFrame, Card, Muted } from "@/components/ui";
-
 export default function HomePage() {
   return (
     <OctonixFrame>
