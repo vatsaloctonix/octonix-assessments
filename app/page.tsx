@@ -1,14 +1,14 @@
-import { OctonixFrame, Card, Muted } from "@/components/ui";
+import { OctonixFrame } from "@/components/ui";
+import { Suspense } from "react";
+import RolesClient from "./rolesClient";
 
-export default function HomePage() {
+export default function RolesPage() {
   return (
     <OctonixFrame>
-      <Card title="Open your assessment link">
-        <div className="space-y-2">
-          <div className="text-sm">This assessment is link-based.</div>
-          <Muted>If you were sent a link by Octonix Solutions, open that link directly.</Muted>
-        </div>
-      </Card>
+      {/* changed [from direct render to Suspense wrapper because RolesClient uses useSearchParams] */}
+      <Suspense fallback={<div className="text-sm text-black/60">Loading...</div>}>
+        <RolesClient />
+      </Suspense>
     </OctonixFrame>
   );
 }
