@@ -616,7 +616,9 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
         </Button>
       </div>
       {!isStep1Valid() && !isSubmitted && (
-        <Muted className="mt-2 text-center">Please complete all fields to continue</Muted>
+        <div className="mt-2 text-center">
+          <Muted>Please complete all fields to continue</Muted>
+        </div>
       )}
     </Card>
   );
@@ -714,7 +716,9 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
         </Button>
       </div>
       {!isStep2Valid() && !isSubmitted && (
-        <Muted className="mt-2 text-center">Please answer all prompt tasks to continue</Muted>
+        <div className="mt-2 text-center">
+          <Muted>Please answer all prompt tasks to continue</Muted>
+        </div>
       )}
     </Card>
   );
