@@ -525,7 +525,6 @@ export default function AdminSubmissionClient(props: { id: string }) {
                     </div>
                   </div>
                   <Button
-                    size="sm"
                     onClick={generateVideoTokens}
                     disabled={tokensGenerating}
                     className="print-hidden"
