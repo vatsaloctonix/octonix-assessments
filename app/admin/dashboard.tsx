@@ -9,8 +9,25 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [newCandidateLabel, setNewCandidateLabel] = useState("");
   const [createdLink, setCreatedLink] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+
+  const copyToClipboard = async (text: string, tokenId?: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (tokenId) {
+        setCopiedToken(tokenId);
+        setTimeout(() => setCopiedToken(null), 2000);
+      } else {
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2000);
+      }
+    } catch (error) {
+      console.error("Copy failed:", error);
+    }
+  };
 
   async function refresh() {
     setLoading(true);
@@ -91,6 +108,10 @@ export default function AdminDashboard() {
                 const data = await res.json();
                 setCreatedLink(data.url);
                 setNewCandidateLabel("");
+
+                // Auto-copy link to clipboard
+                await copyToClipboard(data.url);
+
                 await refresh();
               }}
             >
@@ -99,11 +120,22 @@ export default function AdminDashboard() {
           </div>
         </div>
         {createdLink && (
-          <div className="mt-3 rounded-xl border border-black/10 bg-black/5 px-3 py-2 text-sm">
-            Link:{" "}
-            <a className="underline" href={createdLink}>
-              {createdLink}
-            </a>
+          <div className="mt-3 rounded-xl border border-green-500/30 bg-green-50 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex-1 overflow-hidden">
+                <div className="text-xs font-medium text-green-800">Assessment Link {copiedLink && "- Copied!"}</div>
+                <a className="block truncate text-sm text-green-700 underline" href={createdLink} target="_blank" rel="noopener noreferrer">
+                  {createdLink}
+                </a>
+              </div>
+              <Button
+                variant="ghost"
+                onClick={() => copyToClipboard(createdLink)}
+                className="text-xs"
+              >
+                {copiedLink ? "Copied!" : "Copy"}
+              </Button>
+            </div>
           </div>
         )}
       </Card>
@@ -143,44 +175,61 @@ export default function AdminDashboard() {
               </div>
             )}
 
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className={[
-                  "flex items-center gap-3 rounded-2xl border p-4 transition",
-                  selectedIds.has(item.id) ? "border-red-500/30 bg-red-50" : "border-black/10 hover:border-black/20",
-                ].join(" ")}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(item.id)}
-                  onChange={() => toggleSelection(item.id)}
-                  className="cursor-pointer"
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <a href={`/admin/${item.id}`} className="flex-1">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <div className="text-sm font-semibold">{item.admin_label ?? "Candidate"}</div>
-                      <div className="text-[12px] text-black/60">Status: {item.status}</div>
-                    </div>
-                    <div className="text-[12px] text-black/55">Updated: {new Date(item.updated_at).toLocaleString()}</div>
-                  </div>
-                </a>
-                <Button
-                  variant="danger"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    handleDelete([item.id]);
-                  }}
-                  disabled={deleting}
-                  className="text-xs"
+            {items.map((item) => {
+              const assessmentUrl = `${window.location.origin}/apply/${item.token}`;
+              return (
+                <div
+                  key={item.id}
+                  className={[
+                    "flex items-center gap-3 rounded-2xl border p-4 transition",
+                    selectedIds.has(item.id) ? "border-red-500/30 bg-red-50" : "border-black/10 hover:border-black/20",
+                  ].join(" ")}
                 >
-                  Delete
-                </Button>
-              </div>
-            ))}
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(item.id)}
+                    onChange={() => toggleSelection(item.id)}
+                    className="cursor-pointer"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <a href={`/admin/${item.id}`} className="flex-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <div className="text-sm font-semibold">{item.admin_label ?? "Candidate"}</div>
+                        <div className="text-[12px] text-black/60">Status: {item.status}</div>
+                        <div className="mt-1 text-[11px] text-black/50">
+                          Link: {assessmentUrl.slice(0, 50)}...
+                        </div>
+                      </div>
+                      <div className="text-[12px] text-black/55">Updated: {new Date(item.updated_at).toLocaleString()}</div>
+                    </div>
+                  </a>
+                  <Button
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      copyToClipboard(assessmentUrl, item.id);
+                    }}
+                    className="text-xs"
+                  >
+                    {copiedToken === item.id ? "Copied!" : "Copy Link"}
+                  </Button>
+                  <Button
+                    variant="danger"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDelete([item.id]);
+                    }}
+                    disabled={deleting}
+                    className="text-xs"
+                  >
+                    Delete
+                  </Button>
+                </div>
+              );
+            })}
             {items.length === 0 && <Muted>No submissions yet.</Muted>}
           </div>
         )}

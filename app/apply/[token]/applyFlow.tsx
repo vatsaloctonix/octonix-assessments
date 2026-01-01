@@ -498,12 +498,17 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
                   addHobby(hobbyInput);
                 }
               }}
+              onBlur={() => {
+                if (hobbyInput.trim()) {
+                  addHobby(hobbyInput);
+                }
+              }}
               placeholder="Type and press Enter, comma, or space"
               disabled={isSubmitted}
               className="border-0 p-1 text-sm focus:outline-none"
             />
           </div>
-          <Muted>Press Enter, comma, or space to add</Muted>
+          <Muted>Press Enter, comma, space, or click outside to add</Muted>
         </div>
 
         <div className="space-y-1 md:col-span-2">
@@ -591,22 +596,58 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
                           </label>
                         ))}
                       </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <input
-                          type="time"
-                          value={slot.ranges[0]?.start || "09:00"}
-                          onChange={(e) => updateTimeSlot(index, { ranges: [{ ...slot.ranges[0], start: e.target.value }] })}
-                          disabled={isSubmitted}
-                          className="rounded border border-black/10 px-2 py-1"
-                        />
-                        <span>to</span>
-                        <input
-                          type="time"
-                          value={slot.ranges[0]?.end || "17:00"}
-                          onChange={(e) => updateTimeSlot(index, { ranges: [{ ...slot.ranges[0], end: e.target.value }] })}
-                          disabled={isSubmitted}
-                          className="rounded border border-black/10 px-2 py-1"
-                        />
+                      <div className="space-y-2">
+                        {slot.ranges.map((range, rangeIndex) => (
+                          <div key={rangeIndex} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="time"
+                              value={range.start || "09:00"}
+                              onChange={(e) => {
+                                const newRanges = [...slot.ranges];
+                                newRanges[rangeIndex] = { ...range, start: e.target.value };
+                                updateTimeSlot(index, { ranges: newRanges });
+                              }}
+                              disabled={isSubmitted}
+                              className="rounded border border-black/10 px-2 py-1"
+                            />
+                            <span>to</span>
+                            <input
+                              type="time"
+                              value={range.end || "17:00"}
+                              onChange={(e) => {
+                                const newRanges = [...slot.ranges];
+                                newRanges[rangeIndex] = { ...range, end: e.target.value };
+                                updateTimeSlot(index, { ranges: newRanges });
+                              }}
+                              disabled={isSubmitted}
+                              className="rounded border border-black/10 px-2 py-1"
+                            />
+                            {slot.ranges.length > 1 && !isSubmitted && (
+                              <Button
+                                variant="ghost"
+                                onClick={() => {
+                                  const newRanges = slot.ranges.filter((_, i) => i !== rangeIndex);
+                                  updateTimeSlot(index, { ranges: newRanges });
+                                }}
+                                className="text-xs"
+                              >
+                                ×
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                        {!isSubmitted && (
+                          <Button
+                            variant="ghost"
+                            onClick={() => {
+                              const newRanges = [...slot.ranges, { start: "09:00", end: "17:00" }];
+                              updateTimeSlot(index, { ranges: newRanges });
+                            }}
+                            className="text-xs"
+                          >
+                            + Add Time Range
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
