@@ -172,6 +172,41 @@ export default function AdminSubmissionClient(props: { id: string }) {
                 Collapse
               </button>
             </div>
+
+            {/* Trainer Summary - PROMINENT */}
+            {(item.ai_evaluations as any).overall.trainerSummary && (
+              <>
+                <div className="mt-4 rounded-2xl border-2 border-blue-500 bg-blue-50 p-4 print-block">
+                  <div className="text-sm font-bold text-blue-900 mb-3">📋 Quick Trainer Summary</div>
+                  <div className="space-y-2 text-sm">
+                    <div className="rounded-lg bg-white px-3 py-2">
+                      <div className="text-[11px] font-semibold text-black/50 uppercase tracking-wide">Knowledge Level</div>
+                      <div className="mt-1 text-black/80">{(item.ai_evaluations as any).overall.trainerSummary.knowledgeLevel}</div>
+                    </div>
+                    <div className="rounded-lg bg-white px-3 py-2">
+                      <div className="text-[11px] font-semibold text-black/50 uppercase tracking-wide">Availability</div>
+                      <div className="mt-1 text-black/80">{(item.ai_evaluations as any).overall.trainerSummary.availability}</div>
+                    </div>
+                    <div className="grid md:grid-cols-2 gap-2">
+                      <div className="rounded-lg bg-white px-3 py-2">
+                        <div className="text-[11px] font-semibold text-black/50 uppercase tracking-wide">Best Fit</div>
+                        <div className="mt-1 text-black/80">{(item.ai_evaluations as any).overall.trainerSummary.bestFit}</div>
+                      </div>
+                      <div className="rounded-lg bg-white px-3 py-2">
+                        <div className="text-[11px] font-semibold text-black/50 uppercase tracking-wide">Training Needs</div>
+                        <div className="mt-1 text-black/80">{(item.ai_evaluations as any).overall.trainerSummary.trainingNeeds}</div>
+                      </div>
+                    </div>
+                    <div className="rounded-lg bg-white px-3 py-2 border-2 border-green-300">
+                      <div className="text-[11px] font-semibold text-black/50 uppercase tracking-wide">Ready to Start?</div>
+                      <div className="mt-1 text-lg font-bold text-green-700">{(item.ai_evaluations as any).overall.trainerSummary.readyToStart}</div>
+                    </div>
+                  </div>
+                </div>
+                <Divider />
+              </>
+            )}
+
             <div className="mt-2 grid gap-2 md:grid-cols-2 text-sm">
               <div className="rounded-xl border border-black/10 px-3 py-2">
                 <div className="text-[12px] text-black/60">Overall Score</div>

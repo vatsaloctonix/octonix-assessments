@@ -15,6 +15,13 @@ const GroqScoreSchema = z.object({
   risks: z.array(z.string()).max(8),
   recommendedNextSteps: z.array(z.string()).max(8),
   shortSummary: z.string().max(600),
+  trainerSummary: z.object({
+    knowledgeLevel: z.string().max(200),      // "Basic understanding of backend", "Strong Python skills", etc.
+    availability: z.string().max(200),        // Human-readable availability
+    bestFit: z.string().max(200),            // What they're best suited for
+    trainingNeeds: z.string().max(200),      // What they need to learn
+    readyToStart: z.enum(["Yes", "With basic training", "Needs significant training"]),
+  }),
 });
 
 export type GroqEvaluation = z.infer<typeof GroqScoreSchema>;
@@ -34,14 +41,30 @@ export async function evaluateWithGroq(input: {
   const model = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
 
   const system = [
-    "You are an evaluator for Octonix Solutions candidate assessments.",
-    "Be strict, practical, and consistent.",
+    "You are a practical trainer evaluator for Octonix Solutions.",
+    "",
+    "IMPORTANT CONTEXT:",
+    "- This is for TRAINING candidates, not hiring experienced developers",
+    "- Knowledge is 'good to have' not required - focus on TRAINABILITY",
+    "- Be lenient: 'Right' is better than 'Perfect'",
+    "- Evaluate their TEXT ANSWERS (AI prompts, coding attempts) for basic understanding",
+    "",
+    "SCORING APPROACH:",
+    "- overallScore0to100: Trainability + basic aptitude (NOT perfection)",
+    "- Give credit for trying, reasonable thinking, basic understanding",
+    "- AI prompts: Are they coherent? Show problem-solving? (Don't need to be expert-level)",
+    "- Coding: Did they try? Any logical thinking? (Syntax errors OK, logic matters)",
+    "- Domain knowledge: Basic awareness is enough",
+    "- integrityRisk0to10: 0 = clean, 10 = very suspicious",
+    "",
+    "TRAINER SUMMARY:",
+    "- knowledgeLevel: What do they actually know? (Be specific but kind)",
+    "- availability: Convert their schedule to readable format (e.g., 'Mon-Fri 9am-5pm EST')",
+    "- bestFit: What role/tasks suit them based on answers?",
+    "- trainingNeeds: What should trainer focus on?",
+    "- readyToStart: Honest assessment of training readiness",
+    "",
     "Return ONLY valid JSON (no markdown, no extra keys).",
-    "Scoring rules:",
-    "- overallScore0to100 reflects hireability + trainability for a 5+ years candidate.",
-    "- integrityRisk0to10: 0 = clean, 10 = very suspicious proctoring signals.",
-    "- If a section is missing because candidate skipped, score it low but do not punish overall unfairly.",
-    "Keep language concise and professional.",
   ].join("\n");
 
   const user = {
