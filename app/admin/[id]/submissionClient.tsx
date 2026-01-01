@@ -519,9 +519,10 @@ export default function AdminSubmissionClient(props: { id: string }) {
               <div className="rounded-2xl border-2 border-blue-200 bg-blue-50 p-4 print-block">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
-                    <div className="text-sm font-semibold text-blue-900">One-Time Video Access Links</div>
+                    <div className="text-sm font-semibold text-blue-900">Temp-Video Access Link</div>
                     <div className="mt-1 text-xs text-blue-700">
-                      Generate password-protected links for PDF export. Each link expires after viewing.
+                      Generate password-protected links for videos. to share with candidates.
+                      Each link expires after viewing.
                     </div>
                   </div>
                   <Button

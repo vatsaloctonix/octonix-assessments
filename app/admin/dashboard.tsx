@@ -93,9 +93,9 @@ export default function AdminDashboard() {
       <Card title="Create candidate link">
         <div className="grid gap-3 md:grid-cols-[1fr_auto]">
           <div>
-            <TinyLabel>Candidate label (optional)</TinyLabel>
-            <Input value={newCandidateLabel} onChange={(e) => setNewCandidateLabel(e.target.value)} placeholder="Example: John - AI/ML" />
-            <Muted>Only visible to you. Candidate will not be asked for resume or identity.</Muted>
+            <TinyLabel>Candidate name </TinyLabel>
+            <Input value={newCandidateLabel} onChange={(e) => setNewCandidateLabel(e.target.value)} placeholder="Example: vatsal - AI/ML" />
+            <Muted>Link will be auto copied after creation</Muted>
           </div>
           <div className="flex items-end">
             <Button
@@ -115,7 +115,7 @@ export default function AdminDashboard() {
                 await refresh();
               }}
             >
-              Create link
+              Create
             </Button>
           </div>
         </div>
@@ -234,7 +234,7 @@ export default function AdminDashboard() {
           </div>
         )}
         <Divider />
-        <Muted>Open a submission to see answers, proctoring signals, AI score, and videos.</Muted>
+        <Muted>Click on titles to open a submission to see answers, proctoring, AI score, and videos.</Muted>
       </Card>
     </div>
   );

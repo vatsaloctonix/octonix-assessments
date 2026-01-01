@@ -190,9 +190,9 @@ export const CODING_PROBLEMS: Record<"python" | "java", CodingProblem[]> = {
 };
 
 export const VIDEO_QUESTIONS: string[] = [
-  "In 60 seconds: describe your current situation and what you need most in the next 60 days.",
-  "Why did you choose this domain? What are you genuinely best at in it?",
-  "Be brutally honest: what are you worst at right now in your domain?",
-  "Describe a time you were under pressure and how you handled it.",
-  "If we give you a training plan, what will you do daily to finish it?",
+  "Tell us about yourself ( just normal eveyday intro as you like)",
+  "What's your favorite hobby and how is it useful to you?",
+  "What's your day-to-day routine looks like?",
+  "what are your biggest strengths and weaknesses?",
+  "what do you usually do in your free time?",
 ];

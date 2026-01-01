@@ -433,7 +433,7 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
 
   const commonHeader = (
     <div className="flex flex-col gap-1">
-      <div className="text-[12px] text-black/55">Be brutally honest. Each answer guides your training and placement.</div>
+      <div className="text-[12px] text-black/55">Be brutally honest. Each answer help us to your training and placement.</div>
     </div>
   );
 
@@ -674,7 +674,7 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
             rows={4}
             value={answers.personality?.pressureNotes ?? ""}
             onChange={(e) => saveAnswers({ personality: { ...(answers.personality ?? {}), pressureNotes: e.target.value } })}
-            placeholder="Write what's actually happening."
+            placeholder="Write what's actually happening, what are your main stressors right now? so we can keep that in mind."
             disabled={isSubmitted}
           />
         </div>
@@ -881,7 +881,7 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
         <div className="space-y-6">
           <div className="space-y-2">
             <div className="text-sm font-semibold">{selectedRoleLabel}</div>
-            <Muted>Answer basic questions. Short answers are fine.</Muted>
+            <Muted>Answer basic questions.if you don't know any answer, keep it blank, entire step 4 is optional</Muted>
           </div>
 
           <div className="space-y-4">
@@ -931,7 +931,7 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold">Coding (basic)</div>
-                  <Muted>You can skip any question. Manual review + optional AI scoring.</Muted>
+                  <Muted>You can skip any/all question its optional.</Muted>
                 </div>
                 <label className="flex items-center gap-2 text-sm">
                   <input
@@ -1268,14 +1268,14 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
   }
 
   const Step5 = (
-    <Card title="Step 5 - Video Interview (5 questions)" right={saveBadge}>
+    <Card title="Step 5 - Video Interview (5 questions and all are compulsory )" right={saveBadge}>
       {/* Instructions Screen */}
       {videoState.showInstructions && (
         <div className="space-y-4">
           <div className="rounded-xl border border-black/10 bg-black/5 p-6">
             <h3 className="font-semibold">Video Interview Instructions</h3>
             <ul className="mt-3 space-y-2 text-sm text-black/70">
-              <li>• We'll ask you 5 questions about yourself and your goals</li>
+              <li>• We'll ask you 5 simple questions regarding you.</li>
               <li>• For each question, you'll get a 7-second countdown to prepare</li>
               <li>• Recording starts automatically and lasts up to 3 minutes per question</li>
               <li>• You can stop recording early if you're done</li>
@@ -1368,7 +1368,7 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
             {videoState.uploadProgress === "uploading" && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/60">
                 <div className="text-center text-white">
-                  <div className="text-lg font-medium">Uploading...</div>
+                  <div className="text-lg font-medium">Please wait...Uploading...</div>
                 </div>
               </div>
             )}

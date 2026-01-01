@@ -10,7 +10,7 @@ export default function AdminLoginClient() {
   return (
     <Card title="Admin login">
       <div className="space-y-3 max-w-sm">
-        <Muted>Octonix Solutions - internal access only.</Muted>
+        <Muted>Octonix Solutions (internal access only.)</Muted>
         <div>
           <TinyLabel>Admin password</TinyLabel>
           <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
@@ -35,7 +35,7 @@ export default function AdminLoginClient() {
           >
             Login
           </Button>
-          {state === "error" && <span className="text-sm text-red-600">Wrong password</span>}
+          {state === "error" && <span className="text-sm text-red-600">Wrong password - 1 try left, ip saved</span>}
         </div>
       </div>
     </Card>
