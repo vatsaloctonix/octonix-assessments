@@ -44,6 +44,8 @@ function nowIso() {
 
 export default function ApplyFlow(props: { token: string; initialStep?: number }) {
   const [showHonestyPopup, setShowHonestyPopup] = useState(true);
+  const [showMonitoringPopup, setShowMonitoringPopup] = useState(false);
+  const [monitoringPermissionsGranted, setMonitoringPermissionsGranted] = useState(false);
   const [activeStep, setActiveStep] = useState<number>(() => {
     const maybe = props.initialStep;
     if (maybe && maybe >= 1 && maybe <= 5) return maybe;
@@ -56,6 +58,10 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
   const [answers, setAnswers] = useState<AllAnswers>({});
   const [status, setStatus] = useState<"in_progress" | "submitted">("in_progress");
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
+
+  const monitoringStreamRef = useRef<MediaStream | null>(null);
+  const monitoringVideoRef = useRef<HTMLVideoElement | null>(null);
+  const screenShareStreamRef = useRef<MediaStream | null>(null);
 
   const pendingProctoringEventsRef = useRef<Array<{ type: string; details?: Record<string, unknown> }>>([]);
   const proctoringFlushTimerRef = useRef<number | null>(null);
@@ -268,6 +274,8 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
       // Don't show honesty popup if already submitted or if resuming from later step
       if (assessment.status === "submitted" || (assessment.current_step && assessment.current_step > 1)) {
         setShowHonestyPopup(false);
+        setShowMonitoringPopup(false);
+        setMonitoringPermissionsGranted(true); // Skip monitoring request if resuming
       }
     } catch (e: any) {
       setLoadError(e?.message ?? "Failed to load assessment");
@@ -970,8 +978,25 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
   );
 
   async function ensureMediaStream() {
+    // Reuse monitoring stream if already granted
+    if (monitoringStreamRef.current) {
+      console.log("[VIDEO] Reusing monitoring stream for recording");
+      mediaStreamRef.current = monitoringStreamRef.current;
+
+      // Set preview
+      if (videoPreviewRef.current) {
+        videoPreviewRef.current.srcObject = monitoringStreamRef.current;
+        videoPreviewRef.current.play();
+      }
+
+      setVideoState((s) => ({ ...s, permissionGranted: true, lastError: null }));
+      return monitoringStreamRef.current;
+    }
+
+    // Fallback: request permissions if monitoring stream not available
     if (mediaStreamRef.current) return mediaStreamRef.current;
     try {
+      console.log("[VIDEO] Monitoring stream not found, requesting new permissions");
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       mediaStreamRef.current = stream;
 
@@ -1399,8 +1424,74 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
               </p>
             </div>
             <div className="mt-6">
-              <Button className="w-full" onClick={() => setShowHonestyPopup(false)}>
+              <Button className="w-full" onClick={() => {
+                setShowHonestyPopup(false);
+                setShowMonitoringPopup(true);
+              }}>
                 I understand - Let's begin
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Monitoring Permissions Popup */}
+      {showMonitoringPopup && !isSubmitted && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-lg rounded-2xl border border-black/10 bg-white p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold">Assessment Monitoring</h2>
+            <div className="mt-4 space-y-3 text-sm text-black/70">
+              <p>
+                To ensure assessment integrity, we need to enable monitoring throughout the assessment.
+              </p>
+              <p className="font-medium">
+                We will request:
+              </p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li><strong>Screen sharing</strong> - To monitor your screen during the assessment</li>
+                <li><strong>Camera & Microphone</strong> - To verify your identity and record video responses</li>
+              </ul>
+              <p className="text-xs text-black/50">
+                These permissions are required to proceed with the assessment.
+              </p>
+            </div>
+            <div className="mt-6">
+              <Button className="w-full" onClick={async () => {
+                console.log("[MONITORING] Requesting screen share and camera/mic permissions...");
+                try {
+                  // Request screen share (just for intimidation, don't need to actually use it)
+                  console.log("[MONITORING] Requesting screen share...");
+                  const screenStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: true,
+                    audio: false
+                  });
+                  screenShareStreamRef.current = screenStream;
+                  console.log("[MONITORING] Screen share granted");
+
+                  // Request camera and mic (show preview throughout, only record in Step 5)
+                  console.log("[MONITORING] Requesting camera and microphone...");
+                  const monitoringStream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                  });
+                  monitoringStreamRef.current = monitoringStream;
+
+                  // Set up video preview
+                  if (monitoringVideoRef.current) {
+                    monitoringVideoRef.current.srcObject = monitoringStream;
+                    monitoringVideoRef.current.play();
+                  }
+
+                  console.log("[MONITORING] Camera and mic granted, preview active");
+
+                  setMonitoringPermissionsGranted(true);
+                  setShowMonitoringPopup(false);
+                } catch (error: any) {
+                  console.error("[MONITORING] Permission error:", error);
+                  alert(`Unable to enable monitoring: ${error.message}\n\nYou must grant these permissions to proceed with the assessment.`);
+                }
+              }}>
+                Enable Monitoring & Continue
               </Button>
             </div>
           </div>
@@ -1446,6 +1537,30 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
         {activeStep === 5 && Step5}
       </div>
     </div>
+
+      {/* Monitoring Indicator - shows when permissions are granted */}
+      {monitoringPermissionsGranted && !isSubmitted && (
+        <div className="fixed top-4 right-4 z-40 flex items-center gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 shadow-lg">
+          <div className="h-2 w-2 animate-pulse rounded-full bg-red-600"></div>
+          <span>Screen & Video Monitoring Active</span>
+        </div>
+      )}
+
+      {/* Camera Preview - persistent in bottom-right corner */}
+      {monitoringPermissionsGranted && !isSubmitted && (
+        <div className="fixed bottom-4 right-4 z-40 overflow-hidden rounded-xl border-2 border-black/20 shadow-2xl">
+          <video
+            ref={monitoringVideoRef}
+            autoPlay
+            muted
+            playsInline
+            className="h-32 w-40 object-cover"
+          />
+          <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-2 py-1 text-center text-[10px] font-medium text-white">
+            Live Preview
+          </div>
+        </div>
+      )}
     </OctonixFrame>
   );
 }

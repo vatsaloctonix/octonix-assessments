@@ -360,6 +360,9 @@ export default function AdminSubmissionClient(props: { id: string }) {
             <div className="space-y-3">
               {domainQuestions.map((q, index) => {
                 const answer = item.answers?.domainKnowledge?.answersByQuestionId?.[q.id];
+                const isCorrect = q.kind === "mcq" && q.correctAnswer && answer === q.correctAnswer;
+                const isWrong = q.kind === "mcq" && q.correctAnswer && answer && answer !== q.correctAnswer;
+
                 return (
                   <div key={q.id} className="rounded-lg border border-black/10 p-3">
                     <div className="text-[12px] font-medium text-black/60">
@@ -368,19 +371,34 @@ export default function AdminSubmissionClient(props: { id: string }) {
                     <div className="mt-1 text-sm font-medium">{q.prompt}</div>
                     {q.kind === "mcq" && q.options && (
                       <div className="mt-2 space-y-1">
-                        {q.options.map((opt, i) => (
-                          <div
-                            key={i}
-                            className={[
-                              "rounded-lg border px-2 py-1 text-xs",
-                              answer === opt
-                                ? "border-black/30 bg-black/10 font-medium"
-                                : "border-black/10 text-black/50",
-                            ].join(" ")}
-                          >
-                            {opt}
-                          </div>
-                        ))}
+                        {q.options.map((opt, i) => {
+                          const isThisCorrectAnswer = opt === q.correctAnswer;
+                          const isThisCandidateAnswer = answer === opt;
+
+                          return (
+                            <div
+                              key={i}
+                              className={[
+                                "rounded-lg border px-2 py-1 text-xs",
+                                isThisCandidateAnswer && isCorrect
+                                  ? "border-green-300 bg-green-50 font-medium text-green-700"
+                                  : isThisCandidateAnswer && isWrong
+                                  ? "border-red-300 bg-red-50 font-medium text-red-700"
+                                  : isThisCorrectAnswer && isWrong
+                                  ? "border-green-300 bg-green-50 font-medium text-green-700"
+                                  : "border-black/10 text-black/50",
+                              ].join(" ")}
+                            >
+                              {isThisCorrectAnswer && isWrong && !isThisCandidateAnswer && (
+                                <span className="mr-1">✓</span>
+                              )}
+                              {isThisCandidateAnswer && isWrong && (
+                                <span className="mr-1">✗</span>
+                              )}
+                              {opt}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                     {q.kind === "text" && (
