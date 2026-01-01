@@ -475,12 +475,23 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
           {(() => {
             const avail = answers.personality?.dailyAvailability;
             const isNewFormat = typeof avail === "object" && avail !== null && "timezone" in avail;
-            const currentTimezone = isNewFormat ? avail.timezone : "EST";
-            const currentSchedule = isNewFormat ? avail.schedule : [];
 
-            const updateAvailability = (updates: Partial<typeof avail>) => {
-              const newAvail = isNewFormat ? { ...avail, ...updates } : { timezone: currentTimezone, schedule: currentSchedule, ...updates };
-              saveAnswers({ personality: { ...(answers.personality ?? {}), dailyAvailability: newAvail as any } });
+            type AvailabilityFormat = {
+              timezone: "EST" | "PST" | "CST" | "MST";
+              schedule: Array<{
+                days: string[];
+                ranges: Array<{ start: string; end: string }>;
+              }>;
+            };
+
+            const currentTimezone = isNewFormat ? (avail as AvailabilityFormat).timezone : "EST";
+            const currentSchedule = isNewFormat ? (avail as AvailabilityFormat).schedule : [];
+
+            const updateAvailability = (updates: Partial<AvailabilityFormat>) => {
+              const newAvail: AvailabilityFormat = isNewFormat
+                ? { ...(avail as AvailabilityFormat), ...updates }
+                : { timezone: currentTimezone, schedule: currentSchedule, ...updates };
+              saveAnswers({ personality: { ...(answers.personality ?? {}), dailyAvailability: newAvail } });
             };
 
             const addTimeSlot = () => {
