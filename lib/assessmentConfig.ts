@@ -23,6 +23,7 @@ export type DomainQuestion = {
   kind: "mcq" | "text";
   prompt: string;
   options?: string[];
+  correctAnswer?: string; // For MCQ questions - the correct option
 };
 
 export type CodingProblem = {
@@ -90,17 +91,17 @@ export const ROLE_MARKET: RoleMarketInfo[] = [
 
 export const DOMAIN_QUESTIONS: Record<RoleId, DomainQuestion[]> = {
   ai_ml: [
-    { id: "ml_1", kind: "mcq", prompt: "What is overfitting?", options: ["Model performs well on new data", "Model performs well on training but poorly on new data", "Training is too slow", "Dataset is too small"] },
-    { id: "ml_2", kind: "mcq", prompt: "Train / Validation / Test split is mainly used to…", options: ["Increase dataset size", "Measure generalization and avoid leakage", "Make training faster", "Remove noise automatically"] },
-    { id: "ml_3", kind: "mcq", prompt: "Which is a classification metric?", options: ["RMSE", "Accuracy", "MAE", "R²"] },
-    { id: "ml_4", kind: "mcq", prompt: "Which step usually comes first?", options: ["Model deployment", "Data understanding & cleaning", "A/B testing", "Hyperparameter tuning"] },
+    { id: "ml_1", kind: "mcq", prompt: "What is overfitting?", options: ["Model performs well on new data", "Model performs well on training but poorly on new data", "Training is too slow", "Dataset is too small"], correctAnswer: "Model performs well on training but poorly on new data" },
+    { id: "ml_2", kind: "mcq", prompt: "Train / Validation / Test split is mainly used to…", options: ["Increase dataset size", "Measure generalization and avoid leakage", "Make training faster", "Remove noise automatically"], correctAnswer: "Measure generalization and avoid leakage" },
+    { id: "ml_3", kind: "mcq", prompt: "Which is a classification metric?", options: ["RMSE", "Accuracy", "MAE", "R²"], correctAnswer: "Accuracy" },
+    { id: "ml_4", kind: "mcq", prompt: "Which step usually comes first?", options: ["Model deployment", "Data understanding & cleaning", "A/B testing", "Hyperparameter tuning"], correctAnswer: "Data understanding & cleaning" },
     { id: "ml_5", kind: "text", prompt: "In one line: what does gradient descent do?" },
-    { id: "ml_6", kind: "mcq", prompt: "RAG stands for…", options: ["Retrieval-Augmented Generation", "Randomized AI Gradient", "Recurrent Attention Graph", "Rapid Agent Generation"] },
+    { id: "ml_6", kind: "mcq", prompt: "RAG stands for…", options: ["Retrieval-Augmented Generation", "Randomized AI Gradient", "Recurrent Attention Graph", "Rapid Agent Generation"], correctAnswer: "Retrieval-Augmented Generation" },
     { id: "ml_7", kind: "text", prompt: "Name 2 common causes of data leakage." },
-    { id: "ml_8", kind: "mcq", prompt: "For imbalanced classes, which is often more informative than accuracy?", options: ["Precision/Recall", "MSE", "R²", "Silhouette score"] },
+    { id: "ml_8", kind: "mcq", prompt: "For imbalanced classes, which is often more informative than accuracy?", options: ["Precision/Recall", "MSE", "R²", "Silhouette score"], correctAnswer: "Precision/Recall" },
     { id: "ml_9", kind: "text", prompt: "What is a feature? (short)" },
     { id: "ml_10", kind: "text", prompt: "What does a confusion matrix show? (short)" },
-    { id: "ml_11", kind: "mcq", prompt: "What does regularization mainly help with?", options: ["Overfitting", "Underfitting", "Data collection", "Labeling speed"] },
+    { id: "ml_11", kind: "mcq", prompt: "What does regularization mainly help with?", options: ["Overfitting", "Underfitting", "Data collection", "Labeling speed"], correctAnswer: "Overfitting" },
     { id: "ml_12", kind: "text", prompt: "Explain bias vs variance in 2 short lines." },
   ],
   product_manager: [
