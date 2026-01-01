@@ -259,10 +259,15 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
       setCandidateName(assessment.admin_label);
       setAnswers(assessment.answers ?? {});
 
-      // Don't show honesty popup if already submitted
-      if (assessment.status === "submitted") {
+      // Load last active step
+      if (assessment.current_step && assessment.current_step >= 1 && assessment.current_step <= 5) {
+        console.log(`[PROGRESS] Resuming from step ${assessment.current_step}`);
+        setActiveStep(assessment.current_step);
+      }
+
+      // Don't show honesty popup if already submitted or if resuming from later step
+      if (assessment.status === "submitted" || (assessment.current_step && assessment.current_step > 1)) {
         setShowHonestyPopup(false);
-        // Assessment is complete - will show submitted screen
       }
     } catch (e: any) {
       setLoadError(e?.message ?? "Failed to load assessment");
@@ -272,6 +277,20 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
   useEffect(() => {
     void loadAssessment();
   }, [loadAssessment]);
+
+  // Save current step whenever it changes
+  useEffect(() => {
+    if (!props.token || isSubmitted) return;
+    if (activeStep < 1 || activeStep > 5) return;
+
+    console.log(`[PROGRESS] Saving current step: ${activeStep}`);
+    // Save to database
+    fetch("/api/application/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token: props.token, currentStep: activeStep }),
+    }).catch((e) => console.error("[PROGRESS] Failed to save step:", e));
+  }, [activeStep, props.token, isSubmitted]);
 
   const saveTimerRef = useRef<number | null>(null);
   const pendingSaveRef = useRef<Partial<AllAnswers>>({});
@@ -1092,10 +1111,13 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
             <Button
               className="flex-1"
               onClick={async () => {
+                console.log("[VIDEO] Requesting camera/mic permissions...");
                 try {
                   await ensureMediaStream();
-                  setVideoState((s) => ({ ...s, showInstructions: false }));
-                } catch {
+                  console.log("[VIDEO] Permissions granted, hiding instructions");
+                  setVideoState((s) => ({ ...s, showInstructions: false, permissionGranted: true }));
+                } catch (error) {
+                  console.error("[VIDEO] Permission error:", error);
                   // Error already set in ensureMediaStream
                 }
               }}
@@ -1165,18 +1187,27 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
             {!videoState.isRecording && videoState.countdownSecRemaining === 0 && !activeQuestionHasUpload && !activeQuestionWasAttempted && (
               <Button
                 onClick={async () => {
+                  console.log("[VIDEO] Start Recording button clicked");
                   try {
                     const nextAttempted = Array.from(new Set([...(answers.video?.attemptedQuestionIndices ?? []), videoState.activeQuestionIndex]));
                     saveAnswers({ video: { ...(answers.video ?? {}), attemptedQuestionIndices: nextAttempted } });
 
-                    setVideoState((s) => ({ ...s, countdownSecRemaining: 7, lastError: null, uploadProgress: "idle", onBreak: false }));
+                    console.log("[VIDEO] Starting countdown from 7...");
+                    // Countdown from 7 to 1
                     for (let t = 7; t >= 1; t--) {
-                      setVideoState((s) => ({ ...s, countdownSecRemaining: t }));
+                      console.log(`[VIDEO] Countdown: ${t} seconds`);
+                      setVideoState((s) => ({ ...s, countdownSecRemaining: t, lastError: null, uploadProgress: "idle", onBreak: false }));
                       await new Promise((r) => setTimeout(r, 1000));
                     }
+
+                    console.log("[VIDEO] Countdown complete, setting to 0");
                     setVideoState((s) => ({ ...s, countdownSecRemaining: 0 }));
+
+                    console.log("[VIDEO] Starting recording...");
                     await startRecordingForActiveQuestion();
+                    console.log("[VIDEO] Recording started successfully");
                   } catch (e: any) {
+                    console.error("[VIDEO] Error during recording start:", e);
                     setVideoState((s) => ({ ...s, lastError: e?.message ?? "Camera/mic error" }));
                   }
                 }}

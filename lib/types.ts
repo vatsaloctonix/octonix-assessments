@@ -82,6 +82,7 @@ export type StoredAssessment = {
   token: string;
   admin_label: string | null;
   status: "in_progress" | "submitted";
+  current_step?: number; // Track which step candidate is on
   answers: AllAnswers;
   proctoring: {
     counts: Record<string, number>;
