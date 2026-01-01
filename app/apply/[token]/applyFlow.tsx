@@ -95,7 +95,7 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
     permissionGranted: boolean;
   }>({
     activeQuestionIndex: 0,
-    countdownSecRemaining: 7,
+    countdownSecRemaining: 0,
     isRecording: false,
     recordedBlobs: [],
     recordingStartedAtMs: null,
@@ -107,6 +107,15 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
   });
 
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
+
+  // Set up monitoring video preview when permissions are granted
+  useEffect(() => {
+    if (monitoringPermissionsGranted && monitoringStreamRef.current && monitoringVideoRef.current) {
+      console.log("[MONITORING] Setting up video preview");
+      monitoringVideoRef.current.srcObject = monitoringStreamRef.current;
+      monitoringVideoRef.current.play().catch((e) => console.error("[MONITORING] Preview play error:", e));
+    }
+  }, [monitoringPermissionsGranted]);
 
   const attemptedQuestionIndices = useMemo(() => {
     return answers.video?.attemptedQuestionIndices ?? [];
@@ -189,14 +198,14 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
 
   useEffect(() => {
     const onVisibility = () => {
-      if (document.visibilityState === "hidden") logProctoringEvent("visibility_hidden");
+      if (document.visibilityState === "hidden") logProctoringEvent("tabSwitch");
     };
-    const onBlur = () => logProctoringEvent("window_blur");
+    const onBlur = () => logProctoringEvent("tabSwitch");
     const onFocus = () => logProctoringEvent("window_focus");
-    const onCopy = () => logProctoringEvent("copy");
-    const onPaste = () => logProctoringEvent("paste");
-    const onCut = () => logProctoringEvent("cut");
-    const onContextMenu = () => logProctoringEvent("context_menu");
+    const onCopy = () => logProctoringEvent("copyAttempt");
+    const onPaste = () => logProctoringEvent("pasteAttempt");
+    const onCut = () => logProctoringEvent("cutAttempt");
+    const onContextMenu = () => logProctoringEvent("contextMenu");
 
     const onKeyDown = (e: KeyboardEvent) => {
       const blocked =
@@ -1475,17 +1484,12 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
                     audio: true
                   });
                   monitoringStreamRef.current = monitoringStream;
+                  console.log("[MONITORING] Camera and mic granted");
 
-                  // Set up video preview
-                  if (monitoringVideoRef.current) {
-                    monitoringVideoRef.current.srcObject = monitoringStream;
-                    monitoringVideoRef.current.play();
-                  }
-
-                  console.log("[MONITORING] Camera and mic granted, preview active");
-
+                  // Set permissions granted - useEffect will set up the video preview
                   setMonitoringPermissionsGranted(true);
                   setShowMonitoringPopup(false);
+                  console.log("[MONITORING] Permissions granted, preview will be set up by useEffect");
                 } catch (error: any) {
                   console.error("[MONITORING] Permission error:", error);
                   alert(`Unable to enable monitoring: ${error.message}\n\nYou must grant these permissions to proceed with the assessment.`);

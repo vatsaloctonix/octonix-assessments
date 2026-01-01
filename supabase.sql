@@ -5,6 +5,7 @@ create table if not exists public.candidate_assessments (
   token text unique not null,
   admin_label text null,
   status text not null default 'in_progress',
+  current_step integer null,
   answers jsonb not null default '{}'::jsonb,
   proctoring jsonb not null default '{"counts": {}, "events": []}'::jsonb,
   videos jsonb not null default '{}'::jsonb,
@@ -28,3 +29,7 @@ before update on public.candidate_assessments
 for each row execute function public.set_updated_at();
 
 alter table public.candidate_assessments enable row level security;
+
+-- Migration: Add current_step column (run this if table already exists)
+-- This allows tracking which step the candidate is on for resume functionality
+alter table public.candidate_assessments add column if not exists current_step integer null;
