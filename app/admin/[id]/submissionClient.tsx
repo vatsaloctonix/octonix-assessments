@@ -12,8 +12,10 @@ function safeJson(value: unknown) {
 export default function AdminSubmissionClient(props: { id: string }) {
   const [item, setItem] = useState<StoredAssessment | null>(null);
   const [videoLinks, setVideoLinks] = useState<Array<{ questionIndex: number; url: string }>>([]);
+  const [videoTokens, setVideoTokens] = useState<Array<{ questionIndex: number; tokenId: string; password: string; expiresAt: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [groqState, setGroqState] = useState<"idle" | "running" | "done" | "error">("idle");
+  const [tokensGenerating, setTokensGenerating] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["step1", "step2", "step3", "videos", "ai"]));
 
   async function load() {
@@ -44,14 +46,40 @@ export default function AdminSubmissionClient(props: { id: string }) {
   const exportPDF = () => {
     if (!item) return;
 
-    // Expand all sections temporarily for export
+    // Save current state
+    const previousSections = new Set(expandedSections);
+
+    // Expand all sections for export
     const allSections = new Set(["step1", "step2", "step3", "step4", "step4coding", "videos", "proctoring", "ai"]);
     setExpandedSections(allSections);
 
-    // Wait for DOM update, then print
+    // Wait for DOM to fully render all sections (increased timeout for reliability)
     setTimeout(() => {
       window.print();
-    }, 100);
+
+      // Restore previous state after print dialog closes
+      const restoreState = () => {
+        setExpandedSections(previousSections);
+        window.removeEventListener("afterprint", restoreState);
+      };
+      window.addEventListener("afterprint", restoreState);
+    }, 400);
+  };
+
+  const generateVideoTokens = async () => {
+    if (!item) return;
+    setTokensGenerating(true);
+    try {
+      const res = await fetch(`/api/admin/video-tokens/${item.id}`, { method: "POST" });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setVideoTokens(data.tokens ?? []);
+    } catch (error) {
+      console.error("Failed to generate video tokens:", error);
+      alert("Failed to generate video access links. Please try again.");
+    } finally {
+      setTokensGenerating(false);
+    }
   };
 
   if (loading) {
@@ -128,8 +156,11 @@ export default function AdminSubmissionClient(props: { id: string }) {
         </div>
 
         {groqState === "error" && (
-          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            AI isn't available right now. Please try again later.
+          <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
+            <div className="font-medium mb-1">Hmm, having trouble connecting to our AI assistant</div>
+            <div className="text-orange-700">
+              Our AI scoring service is temporarily unavailable. This usually resolves quickly. Feel free to try again in a moment, or continue reviewing other sections manually.
+            </div>
           </div>
         )}
 
@@ -482,6 +513,57 @@ export default function AdminSubmissionClient(props: { id: string }) {
                 <video controls className="mt-3 w-full rounded-xl border border-black/10" src={v.url} />
               </div>
             ))}
+
+            {/* One-time Video Access Links for PDF Export */}
+            {videoLinks.length > 0 && (
+              <div className="rounded-2xl border-2 border-blue-200 bg-blue-50 p-4 print-block">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-semibold text-blue-900">One-Time Video Access Links</div>
+                    <div className="mt-1 text-xs text-blue-700">
+                      Generate password-protected links for PDF export. Each link expires after viewing.
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={generateVideoTokens}
+                    disabled={tokensGenerating}
+                    className="print-hidden"
+                  >
+                    {tokensGenerating ? "Generating..." : videoTokens.length > 0 ? "Regenerate Links" : "Generate Links"}
+                  </Button>
+                </div>
+
+                {videoTokens.length > 0 && (
+                  <div className="mt-3 space-y-3">
+                    {videoTokens.map((token) => {
+                      const videoUrl = `${window.location.origin}/video-access/${token.tokenId}`;
+                      const expiryDate = new Date(token.expiresAt);
+                      return (
+                        <div key={token.questionIndex} className="rounded-xl border border-blue-300 bg-white p-3">
+                          <div className="text-sm font-medium text-blue-900">
+                            Question {token.questionIndex + 1} Video Access
+                          </div>
+                          <div className="mt-2 space-y-1 text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-black/60">Link:</span>
+                              <code className="flex-1 rounded bg-black/5 px-2 py-1 text-[10px]">{videoUrl}</code>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-black/60">Password:</span>
+                              <code className="rounded bg-green-100 px-2 py-1 font-bold text-green-900">{token.password}</code>
+                            </div>
+                            <div className="text-black/50">
+                              Expires: {expiryDate.toLocaleString()} (one-time use)
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </Card>

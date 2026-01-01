@@ -22,8 +22,14 @@ html, body { height: 100%; }
   header,
   footer,
   button,
-  .no-print {
+  .no-print,
+  .print-hidden {
     display: none !important;
+  }
+
+  /* Show elements that should appear in print */
+  .print-block {
+    display: block !important;
   }
 
   /* Expand all sections for print */

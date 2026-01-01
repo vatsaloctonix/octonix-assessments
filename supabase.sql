@@ -33,3 +33,21 @@ alter table public.candidate_assessments enable row level security;
 -- Migration: Add current_step column (run this if table already exists)
 -- This allows tracking which step the candidate is on for resume functionality
 alter table public.candidate_assessments add column if not exists current_step integer null;
+
+-- Video access tokens table for one-time password-protected links
+create table if not exists public.video_access_tokens (
+  id uuid primary key default gen_random_uuid(),
+  assessment_id uuid not null references public.candidate_assessments(id) on delete cascade,
+  question_index integer not null,
+  storage_path text not null,
+  password text not null,
+  expires_at timestamptz not null,
+  accessed_at timestamptz null,
+  is_used boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_video_access_tokens_expires on public.video_access_tokens(expires_at);
+create index if not exists idx_video_access_tokens_assessment on public.video_access_tokens(assessment_id);
+
+alter table public.video_access_tokens enable row level security;

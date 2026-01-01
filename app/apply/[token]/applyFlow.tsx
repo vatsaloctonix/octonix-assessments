@@ -106,6 +106,11 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
     permissionGranted: false,
   });
 
+  const [audioLevel, setAudioLevel] = useState(0);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioAnalyserRef = useRef<AnalyserNode | null>(null);
+  const audioAnimationRef = useRef<number | null>(null);
+
   const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
 
   // Set up monitoring video preview when permissions are granted
@@ -1081,6 +1086,51 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
     }
   }
 
+  const startAudioMonitoring = (stream: MediaStream) => {
+    try {
+      // Create audio context and analyser
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const analyser = audioContext.createAnalyser();
+      const source = audioContext.createMediaStreamSource(stream);
+
+      analyser.fftSize = 256;
+      source.connect(analyser);
+
+      audioContextRef.current = audioContext;
+      audioAnalyserRef.current = analyser;
+
+      // Start monitoring audio levels
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
+      const updateLevel = () => {
+        if (!audioAnalyserRef.current) return;
+
+        analyser.getByteFrequencyData(dataArray);
+        const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+        const normalizedLevel = Math.min(100, (average / 128) * 100);
+        setAudioLevel(normalizedLevel);
+
+        audioAnimationRef.current = requestAnimationFrame(updateLevel);
+      };
+
+      updateLevel();
+    } catch (error) {
+      console.error("[AUDIO] Error setting up audio monitoring:", error);
+    }
+  };
+
+  const stopAudioMonitoring = () => {
+    if (audioAnimationRef.current) {
+      cancelAnimationFrame(audioAnimationRef.current);
+      audioAnimationRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+    audioAnalyserRef.current = null;
+    setAudioLevel(0);
+  };
+
   async function startRecordingForActiveQuestion() {
     setVideoState((s) => ({ ...s, lastError: null, uploadProgress: "idle" }));
     const stream = await ensureMediaStream();
@@ -1091,12 +1141,19 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
     const startTime = Date.now();
     const questionIndex = videoState.activeQuestionIndex;
 
+    // Start audio monitoring
+    startAudioMonitoring(stream);
+
     recorder.ondataavailable = (event) => {
       if (event.data && event.data.size > 0) recordedBlobs.push(event.data);
     };
 
     recorder.onstop = () => {
       console.log(`[VIDEO] Recording stopped, blobs collected: ${recordedBlobs.length}`);
+
+      // Stop audio monitoring
+      stopAudioMonitoring();
+
       setVideoState((s) => ({
         ...s,
         isRecording: false,
@@ -1288,6 +1345,22 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
               <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-red-600 px-3 py-1.5 text-sm font-medium text-white">
                 <div className="h-2 w-2 animate-pulse rounded-full bg-white"></div>
                 Recording
+              </div>
+            )}
+
+            {/* Audio Level Indicator */}
+            {videoState.isRecording && (
+              <div className="absolute bottom-4 left-4 right-4 flex items-end gap-1 h-16 bg-black/30 rounded-lg px-2 py-2">
+                {Array.from({ length: 20 }).map((_, i) => {
+                  const barHeight = Math.max(0, Math.min(100, audioLevel - (i * 5)));
+                  return (
+                    <div
+                      key={i}
+                      className="flex-1 bg-green-500 rounded-t transition-all duration-100"
+                      style={{ height: `${barHeight}%` }}
+                    />
+                  );
+                })}
               </div>
             )}
 

@@ -70,20 +70,27 @@ export async function evaluateWithGroq(input: {
 
   if (!response.ok) {
     const bodyText = await response.text();
-    throw new Error(`Groq API failed: ${response.status} ${response.statusText} :: ${bodyText}`);
+    // Return a more user-friendly error message
+    if (response.status === 429) {
+      throw new Error("AI service is experiencing high demand. Please try again in a moment.");
+    } else if (response.status >= 500) {
+      throw new Error("AI service is temporarily down. This usually resolves quickly.");
+    } else {
+      throw new Error(`Unable to connect to AI service (${response.status}). Please try again.`);
+    }
   }
 
   const data = await response.json();
   const content = data?.choices?.[0]?.message?.content;
   if (!content || typeof content !== "string") {
-    throw new Error("Groq API returned empty content");
+    throw new Error("AI service returned an incomplete response. Please try again.");
   }
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(content);
   } catch {
-    throw new Error("Groq did not return valid JSON");
+    throw new Error("AI service returned an unexpected format. Please try again.");
   }
 
   return GroqScoreSchema.parse(parsed);
