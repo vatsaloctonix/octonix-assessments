@@ -1,7 +1,7 @@
 import React from "react";
 import clsx from "clsx";
 
-export function OctonixFrame(props: { children: React.ReactNode }) {
+export function OctonixFrame(props: { children: React.ReactNode; candidateName?: string | null; isAdmin?: boolean }) {
   return (
     <div className="min-h-screen bg-white text-black">
       <header className="sticky top-0 z-10 border-b border-black/10 bg-white/80 backdrop-blur">
@@ -13,14 +13,16 @@ export function OctonixFrame(props: { children: React.ReactNode }) {
               <div className="text-[11px] text-black/60">Candidate Assessment</div>
             </div>
           </div>
-          <div className="text-[11px] text-black/50">Minimal. Honest. Signal-focused.</div>
+          <div className="text-[11px] text-black/50">
+            {props.isAdmin ? "Admin" : props.candidateName || "Candidate"}
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-5xl px-5 py-8">{props.children}</main>
       <footer className="border-t border-black/10">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-6 text-[11px] text-black/55">
           <div>© {new Date().getFullYear()} Octonix Solutions</div>
-          <div>Built for clarity.</div>
+          <div>Beyond a job letter</div>
         </div>
       </footer>
     </div>

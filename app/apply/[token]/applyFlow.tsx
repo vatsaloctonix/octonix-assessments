@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Card, Button, Divider, Input, Muted, Select, Textarea, TinyLabel } from "@/components/ui";
+import { Card, Button, Divider, Input, Muted, Select, Textarea, TinyLabel, OctonixFrame } from "@/components/ui";
 import { CODING_PROBLEMS, DOMAIN_QUESTIONS, ROLE_MARKET, VIDEO_QUESTIONS, type RoleId } from "@/lib/assessmentConfig";
 import type { AllAnswers, StoredAssessment } from "@/lib/types";
 import { z } from "zod";
@@ -43,6 +43,7 @@ function nowIso() {
 }
 
 export default function ApplyFlow(props: { token: string; initialStep?: number }) {
+  const [showHonestyPopup, setShowHonestyPopup] = useState(true);
   const [activeStep, setActiveStep] = useState<number>(() => {
     const maybe = props.initialStep;
     if (maybe && maybe >= 1 && maybe <= 5) return maybe;
@@ -51,8 +52,10 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [assessmentId, setAssessmentId] = useState<string | null>(null);
+  const [candidateName, setCandidateName] = useState<string | null>(null);
   const [answers, setAnswers] = useState<AllAnswers>({});
   const [status, setStatus] = useState<"in_progress" | "submitted">("in_progress");
+  const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
 
   const pendingProctoringEventsRef = useRef<Array<{ type: string; details?: Record<string, unknown> }>>([]);
   const proctoringFlushTimerRef = useRef<number | null>(null);
@@ -81,6 +84,9 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
     recordingStartedAtMs: number | null;
     uploadProgress: "idle" | "uploading" | "uploaded" | "error";
     lastError: string | null;
+    onBreak: boolean;
+    showInstructions: boolean;
+    permissionGranted: boolean;
   }>({
     activeQuestionIndex: 0,
     countdownSecRemaining: 7,
@@ -89,7 +95,12 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
     recordingStartedAtMs: null,
     uploadProgress: "idle",
     lastError: null,
+    onBreak: false,
+    showInstructions: true,
+    permissionGranted: false,
   });
+
+  const videoPreviewRef = useRef<HTMLVideoElement | null>(null);
 
   const attemptedQuestionIndices = useMemo(() => {
     return answers.video?.attemptedQuestionIndices ?? [];
@@ -107,15 +118,34 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
   const autoStopTimerRef = useRef<number | null>(null);
 
   const isSubmitted = status === "submitted";
+  const [redirectCountdown, setRedirectCountdown] = useState(15);
+
+  // Auto-redirect after submission
+  useEffect(() => {
+    if (!isSubmitted) return;
+
+    const interval = setInterval(() => {
+      setRedirectCountdown((prev) => {
+        if (prev <= 1) {
+          window.location.href = "https://google.com";
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isSubmitted]);
 
   const stepBadge = (stepNumber: number) => {
     const active = stepNumber === activeStep;
+    const completed = completedSteps.has(stepNumber);
     return (
       <div
         key={stepNumber}
         className={[
           "flex items-center justify-between rounded-xl border px-3 py-2 text-sm",
-          active ? "border-black/30 bg-black/5" : "border-black/10 bg-white",
+          completed ? "border-green-500/30 bg-green-50" : active ? "border-black/30 bg-black/5" : "border-black/10 bg-white",
         ].join(" ")}
       >
         <span className="font-medium">{StepNames[stepNumber - 1]}</span>
@@ -226,7 +256,14 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
 
       setAssessmentId(assessment.id);
       setStatus(assessment.status);
+      setCandidateName(assessment.admin_label);
       setAnswers(assessment.answers ?? {});
+
+      // Don't show honesty popup if already submitted
+      if (assessment.status === "submitted") {
+        setShowHonestyPopup(false);
+        // Assessment is complete - will show submitted screen
+      }
     } catch (e: any) {
       setLoadError(e?.message ?? "Failed to load assessment");
     }
@@ -236,37 +273,125 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
     void loadAssessment();
   }, [loadAssessment]);
 
+  const saveTimerRef = useRef<number | null>(null);
+  const pendingSaveRef = useRef<Partial<AllAnswers>>({});
+
   const saveAnswers = useCallback(
-    async (answersPatch: Partial<AllAnswers>) => {
+    (answersPatch: Partial<AllAnswers>) => {
       if (isSubmitted) return;
-      setSaveState("saving");
-      try {
-        const response = await fetch("/api/application/save", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ token: props.token, answersPatch }),
-        });
-        if (!response.ok) {
-          const text = await response.text();
-          throw new Error(text || "Save failed");
+
+      // Optimistic update - update local state immediately
+      setAnswers((prev) => {
+        const merged = { ...prev };
+        for (const key in answersPatch) {
+          const k = key as keyof AllAnswers;
+          if (typeof answersPatch[k] === 'object' && !Array.isArray(answersPatch[k])) {
+            merged[k] = { ...(prev[k] as any), ...(answersPatch[k] as any) } as any;
+          } else {
+            merged[k] = answersPatch[k] as any;
+          }
         }
-        setAnswers((prev) => ({ ...prev, ...answersPatch }));
-        setSaveState("saved");
-        window.setTimeout(() => setSaveState("idle"), 800);
-      } catch {
-        setSaveState("error");
+        return merged;
+      });
+
+      // Merge into pending save
+      for (const key in answersPatch) {
+        const k = key as keyof AllAnswers;
+        if (typeof answersPatch[k] === 'object' && !Array.isArray(answersPatch[k])) {
+          pendingSaveRef.current[k] = { ...(pendingSaveRef.current[k] as any), ...(answersPatch[k] as any) } as any;
+        } else {
+          pendingSaveRef.current[k] = answersPatch[k] as any;
+        }
       }
+
+      // Debounce server save
+      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+
+      saveTimerRef.current = window.setTimeout(async () => {
+        const toSave = { ...pendingSaveRef.current };
+        pendingSaveRef.current = {};
+
+        setSaveState("saving");
+        try {
+          const response = await fetch("/api/application/save", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: props.token, answersPatch: toSave }),
+          });
+          if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || "Save failed");
+          }
+          setSaveState("saved");
+          window.setTimeout(() => setSaveState("idle"), 800);
+        } catch {
+          setSaveState("error");
+          // Re-queue failed save
+          for (const key in toSave) {
+            const k = key as keyof AllAnswers;
+            pendingSaveRef.current[k] = toSave[k] as any;
+          }
+        }
+      }, 600);
     },
     [props.token, isSubmitted]
   );
 
-  const goNext = () => setActiveStep((s) => Math.min(5, s + 1));
+  // Validation functions
+  const isStep1Valid = () => {
+    const p = answers.personality;
+    return (
+      hobbiesArray.length > 0 &&
+      p?.dailyAvailability !== undefined &&
+      p?.pressureNotes !== undefined && p.pressureNotes.trim().length > 0 &&
+      p?.honestyCommitment === true
+    );
+  };
+
+  const isStep2Valid = () => {
+    const ai = answers.aiUsage;
+    return (
+      ai?.promptTask1 !== undefined && ai.promptTask1.trim().length > 0 &&
+      ai?.promptTask2 !== undefined && ai.promptTask2.trim().length > 0 &&
+      ai?.promptTask3 !== undefined && ai.promptTask3.trim().length > 0
+    );
+  };
+
+  const isStep3Valid = () => {
+    return selectedRoleId !== undefined;
+  };
+
+  const isStep4Valid = () => {
+    // Step 4 allows skipping, so always valid
+    return true;
+  };
+
+  const isStep5Valid = () => {
+    // All 5 videos must be uploaded
+    return uploadedQuestionIndices.length === 5;
+  };
+
+  const canProceedFromStep = (step: number) => {
+    switch (step) {
+      case 1: return isStep1Valid();
+      case 2: return isStep2Valid();
+      case 3: return isStep3Valid();
+      case 4: return isStep4Valid();
+      case 5: return isStep5Valid();
+      default: return false;
+    }
+  };
+
+  const goNext = () => {
+    if (!canProceedFromStep(activeStep)) return;
+    setCompletedSteps((prev) => new Set(prev).add(activeStep));
+    setActiveStep((s) => Math.min(5, s + 1));
+  };
   const goBack = () => setActiveStep((s) => Math.max(1, s - 1));
 
   const commonHeader = (
     <div className="flex flex-col gap-1">
       <div className="text-[12px] text-black/55">Be brutally honest. Each answer guides your training and placement.</div>
-      <div className="text-[11px] text-black/45">Integrity monitor: tab switching / focus changes / copy-paste are logged.</div>
     </div>
   );
 
@@ -279,57 +404,183 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
     </div>
   );
 
+  const hobbiesArray = useMemo(() => {
+    const raw = answers.personality?.hobbies;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === "string" && raw.length > 0) return [raw];
+    return [];
+  }, [answers.personality?.hobbies]);
+
+  const [hobbyInput, setHobbyInput] = useState("");
+
+  const addHobby = (hobby: string) => {
+    const trimmed = hobby.trim();
+    if (!trimmed || hobbiesArray.includes(trimmed)) return;
+    const newHobbies = [...hobbiesArray, trimmed];
+    saveAnswers({ personality: { ...(answers.personality ?? {}), hobbies: newHobbies } });
+    setHobbyInput("");
+  };
+
+  const removeHobby = (index: number) => {
+    const newHobbies = hobbiesArray.filter((_, i) => i !== index);
+    saveAnswers({ personality: { ...(answers.personality ?? {}), hobbies: newHobbies } });
+  };
+
   const Step1 = (
-    <Card title="Step 1 — Personality" right={saveBadge}>
+    <Card title="Step 1 - Personality" right={saveBadge}>
       {commonHeader}
       <Divider />
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-1">
           <TinyLabel>Hobbies</TinyLabel>
-          <Textarea
-            rows={4}
-            value={answers.personality?.hobbies ?? ""}
-            onChange={(e) => void saveAnswers({ personality: { ...(answers.personality ?? {}), hobbies: e.target.value } })}
-            placeholder="Short and real."
-            disabled={isSubmitted}
-          />
+          <div className="rounded-xl border border-black/10 bg-white p-2">
+            <div className="flex flex-wrap gap-2 mb-2">
+              {hobbiesArray.map((hobby, index) => (
+                <div key={index} className="flex items-center gap-1 rounded-lg bg-black/5 px-2 py-1 text-sm">
+                  <span>{hobby}</span>
+                  {!isSubmitted && (
+                    <button
+                      type="button"
+                      onClick={() => removeHobby(index)}
+                      className="ml-1 text-black/40 hover:text-black/80"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <Input
+              value={hobbyInput}
+              onChange={(e) => setHobbyInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === ",") {
+                  e.preventDefault();
+                  addHobby(hobbyInput);
+                } else if (e.key === " " && hobbyInput.trim()) {
+                  e.preventDefault();
+                  addHobby(hobbyInput);
+                }
+              }}
+              placeholder="Type and press Enter, comma, or space"
+              disabled={isSubmitted}
+              className="border-0 p-1 text-sm focus:outline-none"
+            />
+          </div>
+          <Muted>Press Enter, comma, or space to add</Muted>
         </div>
 
-        <div className="space-y-1">
-          <TinyLabel>Daily routine</TinyLabel>
-          <Textarea
-            rows={4}
-            value={answers.personality?.dailyRoutine ?? ""}
-            onChange={(e) => void saveAnswers({ personality: { ...(answers.personality ?? {}), dailyRoutine: e.target.value } })}
-            placeholder="Morning to night, high level."
-            disabled={isSubmitted}
-          />
-        </div>
-
-        <div className="space-y-1">
+        <div className="space-y-1 md:col-span-2">
           <TinyLabel>Daily availability for training</TinyLabel>
-          <Select
-            value={answers.personality?.dailyAvailability ?? ""}
-            onChange={(e) => void saveAnswers({ personality: { ...(answers.personality ?? {}), dailyAvailability: e.target.value as any } })}
-            disabled={isSubmitted}
-          >
-            <option value="" disabled>
-              Select
-            </option>
-            <option value="0-1h">0–1 hour</option>
-            <option value="1-2h">1–2 hours</option>
-            <option value="2-4h">2–4 hours</option>
-            <option value="4h+">4+ hours</option>
-          </Select>
+          {(() => {
+            const avail = answers.personality?.dailyAvailability;
+            const isNewFormat = typeof avail === "object" && avail !== null && "timezone" in avail;
+            const currentTimezone = isNewFormat ? avail.timezone : "EST";
+            const currentSchedule = isNewFormat ? avail.schedule : [];
+
+            const updateAvailability = (updates: Partial<typeof avail>) => {
+              const newAvail = isNewFormat ? { ...avail, ...updates } : { timezone: currentTimezone, schedule: currentSchedule, ...updates };
+              saveAnswers({ personality: { ...(answers.personality ?? {}), dailyAvailability: newAvail as any } });
+            };
+
+            const addTimeSlot = () => {
+              const newSchedule = [...currentSchedule, { days: ["mon", "tue", "wed", "thu", "fri"], ranges: [{ start: "09:00", end: "17:00" }] }];
+              updateAvailability({ schedule: newSchedule });
+            };
+
+            const removeTimeSlot = (index: number) => {
+              const newSchedule = currentSchedule.filter((_, i) => i !== index);
+              updateAvailability({ schedule: newSchedule });
+            };
+
+            const updateTimeSlot = (index: number, updates: Partial<typeof currentSchedule[0]>) => {
+              const newSchedule = [...currentSchedule];
+              newSchedule[index] = { ...newSchedule[index], ...updates };
+              updateAvailability({ schedule: newSchedule });
+            };
+
+            return (
+              <div className="space-y-3 rounded-xl border border-black/10 p-3">
+                <div className="flex items-center gap-3">
+                  <TinyLabel>Timezone</TinyLabel>
+                  <Select
+                    value={currentTimezone}
+                    onChange={(e) => updateAvailability({ timezone: e.target.value as any })}
+                    disabled={isSubmitted}
+                    className="w-32"
+                  >
+                    <option value="EST">EST</option>
+                    <option value="PST">PST</option>
+                    <option value="CST">CST</option>
+                    <option value="MST">MST</option>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  {currentSchedule.map((slot, index) => (
+                    <div key={index} className="rounded-lg border border-black/10 p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <TinyLabel>Time Slot {index + 1}</TinyLabel>
+                        {!isSubmitted && (
+                          <Button variant="ghost" onClick={() => removeTimeSlot(index)} className="text-xs">
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((day) => (
+                          <label key={day} className="flex items-center gap-1 text-xs">
+                            <input
+                              type="checkbox"
+                              checked={slot.days.includes(day)}
+                              onChange={(e) => {
+                                const newDays = e.target.checked
+                                  ? [...slot.days, day]
+                                  : slot.days.filter((d) => d !== day);
+                                updateTimeSlot(index, { days: newDays });
+                              }}
+                              disabled={isSubmitted}
+                            />
+                            {day.charAt(0).toUpperCase() + day.slice(1)}
+                          </label>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <input
+                          type="time"
+                          value={slot.ranges[0]?.start || "09:00"}
+                          onChange={(e) => updateTimeSlot(index, { ranges: [{ ...slot.ranges[0], start: e.target.value }] })}
+                          disabled={isSubmitted}
+                          className="rounded border border-black/10 px-2 py-1"
+                        />
+                        <span>to</span>
+                        <input
+                          type="time"
+                          value={slot.ranges[0]?.end || "17:00"}
+                          onChange={(e) => updateTimeSlot(index, { ranges: [{ ...slot.ranges[0], end: e.target.value }] })}
+                          disabled={isSubmitted}
+                          className="rounded border border-black/10 px-2 py-1"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {!isSubmitted && (
+                  <Button variant="ghost" onClick={addTimeSlot} className="w-full text-sm">
+                    + Add Time Slot
+                  </Button>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
-        <div className="space-y-1">
+        <div className="space-y-1 md:col-span-2">
           <TinyLabel>Pressure (family / visa / money / deadlines)</TinyLabel>
           <Textarea
             rows={4}
             value={answers.personality?.pressureNotes ?? ""}
-            onChange={(e) => void saveAnswers({ personality: { ...(answers.personality ?? {}), pressureNotes: e.target.value } })}
-            placeholder="Write what’s actually happening."
+            onChange={(e) => saveAnswers({ personality: { ...(answers.personality ?? {}), pressureNotes: e.target.value } })}
+            placeholder="Write what's actually happening."
             disabled={isSubmitted}
           />
         </div>
@@ -349,15 +600,18 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
       <Divider />
       <div className="flex items-center justify-between">
         <div />
-        <Button onClick={goNext} disabled={isSubmitted}>
+        <Button onClick={goNext} disabled={isSubmitted || !isStep1Valid()}>
           Continue
         </Button>
       </div>
+      {!isStep1Valid() && !isSubmitted && (
+        <Muted className="mt-2 text-center">Please complete all fields to continue</Muted>
+      )}
     </Card>
   );
 
   const Step2 = (
-    <Card title="Step 2 — AI usage level" right={saveBadge}>
+    <Card title="Step 2 - AI usage level" right={saveBadge}>
       {commonHeader}
       <Divider />
       <div className="grid gap-4 md:grid-cols-2">
@@ -406,34 +660,34 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
       <Divider />
       <div className="space-y-4">
         <div className="space-y-1">
-          <TinyLabel>Prompt task 1 (technical, non-coding)</TinyLabel>
-          <Muted>Scenario: an API request returns 401. Write a prompt to get a step-by-step diagnosis plan.</Muted>
+          <TinyLabel>Prompt task 1</TinyLabel>
+          <Muted>Write a prompt that will draft a small reschedule interview email</Muted>
           <Textarea
             rows={5}
             value={answers.aiUsage?.promptTask1 ?? ""}
-            onChange={(e) => void saveAnswers({ aiUsage: { ...(answers.aiUsage ?? {}), promptTask1: e.target.value } })}
+            onChange={(e) => saveAnswers({ aiUsage: { ...(answers.aiUsage ?? {}), promptTask1: e.target.value } })}
             disabled={isSubmitted}
           />
         </div>
 
         <div className="space-y-1">
-          <TinyLabel>Prompt task 2 (situational)</TinyLabel>
-          <Muted>Scenario: you have 7 days. Balance learning + job search. Write a prompt to get a realistic daily plan.</Muted>
+          <TinyLabel>Prompt task 2</TinyLabel>
+          <Muted>Make a prompt that will write an essay on YouTube in most humanized way</Muted>
           <Textarea
             rows={5}
             value={answers.aiUsage?.promptTask2 ?? ""}
-            onChange={(e) => void saveAnswers({ aiUsage: { ...(answers.aiUsage ?? {}), promptTask2: e.target.value } })}
+            onChange={(e) => saveAnswers({ aiUsage: { ...(answers.aiUsage ?? {}), promptTask2: e.target.value } })}
             disabled={isSubmitted}
           />
         </div>
 
         <div className="space-y-1">
-          <TinyLabel>Prompt task 3 (in-depth)</TinyLabel>
-          <Muted>Scenario: you want an 8-week roadmap for your chosen domain. Write a prompt to get a structured plan with milestones.</Muted>
+          <TinyLabel>Prompt task 3</TinyLabel>
+          <Muted>Pick any daily problem that you are facing, write a prompt and make AI solve it in the most logical way</Muted>
           <Textarea
             rows={6}
             value={answers.aiUsage?.promptTask3 ?? ""}
-            onChange={(e) => void saveAnswers({ aiUsage: { ...(answers.aiUsage ?? {}), promptTask3: e.target.value } })}
+            onChange={(e) => saveAnswers({ aiUsage: { ...(answers.aiUsage ?? {}), promptTask3: e.target.value } })}
             disabled={isSubmitted}
           />
         </div>
@@ -444,16 +698,19 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
         <Button variant="ghost" onClick={goBack}>
           Back
         </Button>
-        <Button onClick={goNext} disabled={isSubmitted}>
+        <Button onClick={goNext} disabled={isSubmitted || !isStep2Valid()}>
           Continue
         </Button>
       </div>
+      {!isStep2Valid() && !isSubmitted && (
+        <Muted className="mt-2 text-center">Please answer all prompt tasks to continue</Muted>
+      )}
     </Card>
   );
 
   const Step3 = (
     <Card
-      title="Step 3 — Choose your domain"
+      title="Step 3 - Choose your domain"
       right={
         <Button variant="ghost" onClick={() => (window.location.href = `/roles?token=${encodeURIComponent(props.token)}`)}>
           Unsure? View roles
@@ -469,32 +726,14 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
           return (
             <button
               key={role.roleId}
-              onClick={() => void saveAnswers({ domain: { selectedRoleId: role.roleId } })}
+              onClick={() => saveAnswers({ domain: { selectedRoleId: role.roleId } })}
               disabled={isSubmitted}
               className={[
-                "rounded-2xl border p-4 text-left transition",
-                selected ? "border-black/35 bg-black/5" : "border-black/10 hover:border-black/20",
+                "rounded-2xl border p-4 text-center transition",
+                selected ? "border-black/35 bg-black/5 font-semibold" : "border-black/10 hover:border-black/20",
               ].join(" ")}
             >
-              <div className="text-sm font-semibold">{role.label}</div>
-              <div className="mt-2 grid grid-cols-2 gap-2 text-[12px] text-black/70">
-                <div className="flex items-center justify-between rounded-xl border border-black/10 px-3 py-2">
-                  <span>Demand</span>
-                  <span className="font-medium">{role.demand}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-xl border border-black/10 px-3 py-2">
-                  <span>Supply</span>
-                  <span className="font-medium">{role.supply}</span>
-                </div>
-                <div className="col-span-2 flex items-center justify-between rounded-xl border border-black/10 px-3 py-2">
-                  <span>Avg companies</span>
-                  <span className="font-medium">{role.averageCompanyUsd}</span>
-                </div>
-                <div className="col-span-2 flex items-center justify-between rounded-xl border border-black/10 px-3 py-2">
-                  <span>Top-tier</span>
-                  <span className="font-medium">{role.topTierUsd}</span>
-                </div>
-              </div>
+              <div className="text-sm">{role.label}</div>
             </button>
           );
         })}
@@ -513,7 +752,7 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
   );
 
   const Step4 = (
-    <Card title="Step 4 — Domain basics + coding (if applicable)" right={saveBadge}>
+    <Card title="Step 4 - Domain basics + coding (if applicable)" right={saveBadge}>
       {commonHeader}
       <Divider />
 
@@ -698,9 +937,22 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
 
   async function ensureMediaStream() {
     if (mediaStreamRef.current) return mediaStreamRef.current;
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    mediaStreamRef.current = stream;
-    return stream;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      mediaStreamRef.current = stream;
+
+      // Set preview
+      if (videoPreviewRef.current) {
+        videoPreviewRef.current.srcObject = stream;
+        videoPreviewRef.current.play();
+      }
+
+      setVideoState((s) => ({ ...s, permissionGranted: true, lastError: null }));
+      return stream;
+    } catch (error: any) {
+      setVideoState((s) => ({ ...s, lastError: error?.message || "Camera/mic permission denied", permissionGranted: false }));
+      throw error;
+    }
   }
 
   async function startRecordingForActiveQuestion() {
@@ -806,134 +1058,218 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
   }
 
   const Step5 = (
-    <Card title="Step 5 — Video (5 questions)" right={saveBadge}>
-      {commonHeader}
-      <Divider />
-
-      <div className="space-y-4">
-        <div className="rounded-2xl border border-black/10 p-4">
-          <div className="text-sm font-semibold">Question {videoState.activeQuestionIndex + 1} / 5</div>
-          <div className="mt-2 text-sm">{VIDEO_QUESTIONS[videoState.activeQuestionIndex]}</div>
-          <div className="mt-3 text-[12px] text-black/60">
-            You get 7 seconds to think. Recording starts automatically. Max 3 minutes. No re-record.
+    <Card title="Step 5 - Video Interview (5 questions)" right={saveBadge}>
+      {/* Instructions Screen */}
+      {videoState.showInstructions && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-black/10 bg-black/5 p-6">
+            <h3 className="font-semibold">Video Interview Instructions</h3>
+            <ul className="mt-3 space-y-2 text-sm text-black/70">
+              <li>• We'll ask you 5 questions about yourself and your goals</li>
+              <li>• For each question, you'll get a 7-second countdown to prepare</li>
+              <li>• Recording starts automatically and lasts up to 3 minutes per question</li>
+              <li>• You can stop recording early if you're done</li>
+              <li>• Between questions, you can take a break if needed</li>
+              <li>• Camera and microphone access is required</li>
+            </ul>
           </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          {!videoState.isRecording && (
+          <div className="flex gap-3">
             <Button
+              className="flex-1"
               onClick={async () => {
                 try {
-                  if (activeQuestionHasUpload || activeQuestionWasAttempted) return;
-
-                  const nextAttempted = Array.from(
-                    new Set([...(answers.video?.attemptedQuestionIndices ?? []), videoState.activeQuestionIndex])
-                  );
-                  void saveAnswers({ video: { ...(answers.video ?? {}), attemptedQuestionIndices: nextAttempted } });
-
-                  setVideoState((s) => ({ ...s, countdownSecRemaining: 7, lastError: null, uploadProgress: "idle" }));
-                  for (let t = 7; t >= 1; t--) {
-                    setVideoState((s) => ({ ...s, countdownSecRemaining: t }));
-                    await new Promise((r) => setTimeout(r, 1000));
-                  }
-                  setVideoState((s) => ({ ...s, countdownSecRemaining: 0 }));
-                  await startRecordingForActiveQuestion();
-                } catch (e: any) {
-                  setVideoState((s) => ({ ...s, lastError: e?.message ?? "Camera/mic permission required" }));
+                  await ensureMediaStream();
+                  setVideoState((s) => ({ ...s, showInstructions: false }));
+                } catch {
+                  // Error already set in ensureMediaStream
                 }
               }}
-              disabled={isSubmitted || activeQuestionHasUpload || activeQuestionWasAttempted}
             >
-              Start
+              {videoState.permissionGranted ? "Continue to Questions" : "Grant Camera & Mic Access"}
             </Button>
+          </div>
+          {videoState.lastError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {videoState.lastError}
+            </div>
           )}
+        </div>
+      )}
 
-          {videoState.isRecording && (
-            <Button
-              variant="danger"
-              onClick={() => {
-                try {
-                  mediaRecorderRef.current?.stop();
-                } catch {}
-              }}
-              disabled={isSubmitted}
-            >
-              Stop recording
-            </Button>
-          )}
+      {/* Main Video Interview */}
+      {!videoState.showInstructions && (
+        <div className="space-y-4">
+          {/* Question Display */}
+          <div className="rounded-2xl border border-black/10 p-6">
+            <div className="text-center">
+              <div className="text-sm font-medium text-black/50">Question {videoState.activeQuestionIndex + 1} of 5</div>
+              <div className="mt-4 text-lg font-semibold">{VIDEO_QUESTIONS[videoState.activeQuestionIndex]}</div>
+            </div>
+          </div>
 
-          <div className="text-sm">
-            {videoState.isRecording ? (
-              <span className="font-medium">Recording…</span>
-            ) : (
-              <span className="text-black/60">Countdown: {videoState.countdownSecRemaining}s</span>
+          {/* Video Preview + Countdown + Recording */}
+          <div className="relative aspect-video overflow-hidden rounded-2xl border border-black/10 bg-black">
+            <video
+              ref={videoPreviewRef}
+              autoPlay
+              muted
+              playsInline
+              className="h-full w-full object-cover"
+            />
+
+            {/* Countdown Overlay */}
+            {videoState.countdownSecRemaining > 0 && !videoState.isRecording && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                <div className="text-center">
+                  <div className="text-8xl font-bold text-white">{videoState.countdownSecRemaining}</div>
+                  <div className="mt-4 text-lg text-white/80">Get ready...</div>
+                </div>
+              </div>
+            )}
+
+            {/* Recording Indicator */}
+            {videoState.isRecording && (
+              <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full bg-red-600 px-3 py-1.5 text-sm font-medium text-white">
+                <div className="h-2 w-2 animate-pulse rounded-full bg-white"></div>
+                Recording
+              </div>
+            )}
+
+            {/* Upload Status */}
+            {videoState.uploadProgress === "uploading" && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                <div className="text-center text-white">
+                  <div className="text-lg font-medium">Uploading...</div>
+                </div>
+              </div>
             )}
           </div>
 
-          <div className="text-[12px] text-black/55">
-            Upload: {videoState.uploadProgress}
-            {videoState.lastError ? ` — ${videoState.lastError}` : ""}
+          {/* Controls */}
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {!videoState.isRecording && videoState.countdownSecRemaining === 0 && !activeQuestionHasUpload && !activeQuestionWasAttempted && (
+              <Button
+                onClick={async () => {
+                  try {
+                    const nextAttempted = Array.from(new Set([...(answers.video?.attemptedQuestionIndices ?? []), videoState.activeQuestionIndex]));
+                    saveAnswers({ video: { ...(answers.video ?? {}), attemptedQuestionIndices: nextAttempted } });
+
+                    setVideoState((s) => ({ ...s, countdownSecRemaining: 7, lastError: null, uploadProgress: "idle", onBreak: false }));
+                    for (let t = 7; t >= 1; t--) {
+                      setVideoState((s) => ({ ...s, countdownSecRemaining: t }));
+                      await new Promise((r) => setTimeout(r, 1000));
+                    }
+                    setVideoState((s) => ({ ...s, countdownSecRemaining: 0 }));
+                    await startRecordingForActiveQuestion();
+                  } catch (e: any) {
+                    setVideoState((s) => ({ ...s, lastError: e?.message ?? "Camera/mic error" }));
+                  }
+                }}
+                disabled={isSubmitted}
+                className="px-8"
+              >
+                Start Recording
+              </Button>
+            )}
+
+            {videoState.isRecording && (
+              <Button
+                variant="danger"
+                onClick={() => {
+                  try {
+                    mediaRecorderRef.current?.stop();
+                  } catch {}
+                }}
+                disabled={isSubmitted}
+                className="px-8"
+              >
+                Stop Recording
+              </Button>
+            )}
+
+            {activeQuestionHasUpload && (
+              <div className="flex items-center gap-2">
+                <div className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-700">✓ Uploaded</div>
+                {videoState.activeQuestionIndex < 4 && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setVideoState((s) => ({ ...s, onBreak: true }))}
+                      disabled={isSubmitted}
+                    >
+                      Take a Break
+                    </Button>
+                    <Button
+                      onClick={() => setVideoState((s) => ({ ...s, activeQuestionIndex: s.activeQuestionIndex + 1, uploadProgress: "idle", lastError: null, recordedBlobs: [] }))}
+                      disabled={isSubmitted}
+                    >
+                      Next Question →
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
-        </div>
 
-        <div className="flex items-center gap-3">
-          {videoState.uploadProgress === "error" && (
-            <Button
-              variant="ghost"
-              onClick={async () => {
-                await uploadCurrentRecording();
-              }}
-              disabled={isSubmitted || videoState.isRecording || videoState.recordedBlobs.length === 0}
-            >
-              Retry upload
-            </Button>
+          {/* Break Screen */}
+          {videoState.onBreak && (
+            <div className="rounded-xl border border-black/10 bg-black/5 p-6 text-center">
+              <div className="text-lg font-semibold">Take Your Time</div>
+              <div className="mt-2 text-sm text-black/70">Resume whenever you're ready</div>
+              <Button
+                className="mt-4"
+                onClick={() => setVideoState((s) => ({ ...s, onBreak: false, activeQuestionIndex: s.activeQuestionIndex + 1, uploadProgress: "idle", lastError: null, recordedBlobs: [] }))}
+              >
+                Continue
+              </Button>
+            </div>
           )}
-          {activeQuestionHasUpload && <div className="text-[12px] text-black/60">Uploaded. Next question.</div>}
-        </div>
 
-        <div className="rounded-2xl border border-black/10 p-4">
-          <div className="text-sm font-semibold">Recorded</div>
-          <div className="mt-2 space-y-1 text-[12px] text-black/60">
-            {Array.from({ length: 5 }).map((_, i) => {
-              const uploaded = (answers.video?.recordings ?? []).some((r) => r.questionIndex === i);
-              const attempted = (answers.video?.attemptedQuestionIndices ?? []).includes(i);
-              if (uploaded) {
-                const r = (answers.video?.recordings ?? []).find((x) => x.questionIndex === i)!;
+          {/* Progress */}
+          <div className="rounded-xl border border-black/10 p-4">
+            <div className="text-sm font-semibold">Progress</div>
+            <div className="mt-2 grid grid-cols-5 gap-2">
+              {Array.from({ length: 5 }).map((_, i) => {
+                const uploaded = uploadedQuestionIndices.includes(i);
+                const current = i === videoState.activeQuestionIndex;
                 return (
-                  <div key={i}>
-                    Q{i + 1} — {r.durationSec}s — uploaded
+                  <div
+                    key={i}
+                    className={[
+                      "rounded-lg border px-2 py-3 text-center text-xs font-medium",
+                      uploaded ? "border-green-500 bg-green-50 text-green-700" : current ? "border-black/30 bg-black/5" : "border-black/10",
+                    ].join(" ")}
+                  >
+                    Q{i + 1}
+                    {uploaded && " ✓"}
                   </div>
                 );
-              }
-              if (attempted) return <div key={i}>Q{i + 1} — recorded — upload pending</div>;
-              return <div key={i}>Q{i + 1} — not started</div>;
-            })}
+              })}
+            </div>
           </div>
-        </div>
 
-        <Divider />
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button variant="ghost" onClick={goBack}>
-            Back
-          </Button>
+          {videoState.lastError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {videoState.lastError}
+              {videoState.uploadProgress === "error" && (
+                <Button
+                  variant="ghost"
+                  onClick={async () => await uploadCurrentRecording()}
+                  disabled={isSubmitted || videoState.recordedBlobs.length === 0}
+                  className="ml-3"
+                >
+                  Retry Upload
+                </Button>
+              )}
+            </div>
+          )}
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              onClick={() => setVideoState((s) => ({ ...s, activeQuestionIndex: Math.max(0, s.activeQuestionIndex - 1), uploadProgress: "idle", lastError: null, recordedBlobs: [] }))}
-              disabled={videoState.activeQuestionIndex === 0}
-            >
-              Previous
+          {/* Navigation */}
+          <Divider />
+          <div className="flex items-center justify-between">
+            <Button variant="ghost" onClick={goBack}>
+              Back
             </Button>
-
-            <Button
-              variant="ghost"
-              onClick={() => setVideoState((s) => ({ ...s, activeQuestionIndex: Math.min(4, s.activeQuestionIndex + 1), uploadProgress: "idle", lastError: null, recordedBlobs: [] }))}
-              disabled={videoState.activeQuestionIndex === 4}
-            >
-              Next
-            </Button>
-
             <Button
               onClick={async () => {
                 if (isSubmitted) return;
@@ -945,38 +1281,88 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
                   });
                   if (!response.ok) throw new Error(await response.text());
                   setStatus("submitted");
-                  setSaveState("saved");
                 } catch {
                   setSaveState("error");
                 }
               }}
               disabled={isSubmitted}
             >
-              Submit
+              Submit Assessment
             </Button>
           </div>
         </div>
-
-        {isSubmitted && (
-          <div className="rounded-2xl border border-black/10 bg-black/5 p-4 text-sm">Submitted. You can close this window.</div>
-        )}
-      </div>
+      )}
     </Card>
   );
 
   if (loadError) {
     return (
-      <Card title="Assessment link">
-        <div className="space-y-2">
-          <div className="text-sm text-red-600">{loadError}</div>
-          <Button onClick={() => void loadAssessment()}>Retry</Button>
+      <OctonixFrame candidateName={candidateName}>
+        <Card title="Assessment link">
+          <div className="space-y-2">
+            <div className="text-sm text-red-600">{loadError}</div>
+            <Button onClick={() => void loadAssessment()}>Retry</Button>
+          </div>
+        </Card>
+      </OctonixFrame>
+    );
+  }
+
+  // Show submission success screen
+  if (isSubmitted) {
+    return (
+      <OctonixFrame candidateName={candidateName}>
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <Card className="max-w-2xl">
+            <div className="text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-50">
+                <div className="text-3xl text-green-600">✓</div>
+              </div>
+              <h2 className="text-2xl font-semibold">Assessment Submitted!</h2>
+              <p className="mt-3 text-black/70">
+                Thank you for your time. Our experts will review your responses and get back to you within <strong>48 hours</strong>.
+              </p>
+              <div className="mt-6 rounded-xl border border-black/10 bg-black/5 p-4">
+                <div className="text-sm text-black/60">
+                  Redirecting to homepage in <strong>{redirectCountdown}</strong> seconds...
+                </div>
+              </div>
+            </div>
+          </Card>
         </div>
-      </Card>
+      </OctonixFrame>
     );
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-[260px_1fr]">
+    <OctonixFrame candidateName={candidateName}>
+      {/* Honesty Popup */}
+      {showHonestyPopup && !isSubmitted && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="mx-4 w-full max-w-lg rounded-2xl border border-black/10 bg-white p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold">A moment before we begin...</h2>
+            <div className="mt-4 space-y-3 text-sm text-black/70">
+              <p>
+                This assessment is designed to understand <strong>your</strong> current level - not to judge you, but to create a <strong>customized training plan</strong> that actually works for you.
+              </p>
+              <p>
+                The more honest you are, the better we can help you. If you're weak in an area, that's exactly what we need to know so we can strengthen it. If you're strong somewhere, we won't waste your time.
+              </p>
+              <p className="font-medium">
+                Being brutally honest helps both of us: You get training that matches your actual needs, and we can place you faster in the right role.
+              </p>
+            </div>
+            <div className="mt-6">
+              <Button className="w-full" onClick={() => setShowHonestyPopup(false)}>
+                I understand - Let's begin
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <div className="grid gap-4 md:grid-cols-[260px_1fr]">
       <div className="space-y-2">
         <Card title="Progress">
           <div className="space-y-2">{[1, 2, 3, 4, 5].map(stepBadge)}</div>
@@ -1014,5 +1400,6 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
         {activeStep === 5 && Step5}
       </div>
     </div>
+    </OctonixFrame>
   );
 }

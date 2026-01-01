@@ -1,9 +1,15 @@
 import { RoleId } from "./assessmentConfig";
 
 export type PersonalityAnswers = {
-  hobbies?: string;
+  hobbies?: string | string[]; // Support both old (string) and new (array) format
   dailyRoutine?: string;
-  dailyAvailability?: "0-1h" | "1-2h" | "2-4h" | "4h+";
+  dailyAvailability?: "0-1h" | "1-2h" | "2-4h" | "4h+" | {
+    timezone: "EST" | "PST" | "CST" | "MST";
+    schedule: Array<{
+      days: string[];
+      ranges: Array<{ start: string; end: string }>;
+    }>;
+  };
   pressureNotes?: string;
   honestyCommitment?: boolean;
 };

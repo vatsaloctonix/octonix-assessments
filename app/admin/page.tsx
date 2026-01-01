@@ -3,7 +3,7 @@ import AdminDashboard from "./dashboard";
 
 export default function AdminPage() {
   return (
-    <OctonixFrame>
+    <OctonixFrame isAdmin={true}>
       <AdminDashboard />
     </OctonixFrame>
   );

@@ -10,7 +10,7 @@ export default function AdminLoginClient() {
   return (
     <Card title="Admin login">
       <div className="space-y-3 max-w-sm">
-        <Muted>Octonix Solutions — internal access only.</Muted>
+        <Muted>Octonix Solutions - internal access only.</Muted>
         <div>
           <TinyLabel>Admin password</TinyLabel>
           <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
