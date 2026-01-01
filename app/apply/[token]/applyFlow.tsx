@@ -1030,26 +1030,31 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
     mediaRecorderRef.current = recorder;
 
     const recordedBlobs: Blob[] = [];
+    const startTime = Date.now();
+    const questionIndex = videoState.activeQuestionIndex;
+
     recorder.ondataavailable = (event) => {
       if (event.data && event.data.size > 0) recordedBlobs.push(event.data);
     };
 
     recorder.onstop = () => {
+      console.log(`[VIDEO] Recording stopped, blobs collected: ${recordedBlobs.length}`);
       setVideoState((s) => ({
         ...s,
         isRecording: false,
         recordedBlobs,
-        recordingStartedAtMs: s.recordingStartedAtMs ?? null,
+        recordingStartedAtMs: startTime,
       }));
 
       // Auto-upload after stop (strict no re-record policy).
       window.setTimeout(() => {
-        void uploadCurrentRecording();
+        console.log(`[VIDEO] Uploading ${recordedBlobs.length} blobs for question ${questionIndex}`);
+        void uploadCurrentRecording(recordedBlobs, startTime, questionIndex);
       }, 250);
     };
 
     recorder.start(300);
-    setVideoState((s) => ({ ...s, isRecording: true, recordedBlobs: [], recordingStartedAtMs: Date.now() }));
+    setVideoState((s) => ({ ...s, isRecording: true, recordedBlobs: [], recordingStartedAtMs: startTime }));
 
     if (autoStopTimerRef.current) window.clearTimeout(autoStopTimerRef.current);
     autoStopTimerRef.current = window.setTimeout(() => {
@@ -1059,25 +1064,40 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
     }, 3 * 60 * 1000);
   }
 
-  async function uploadCurrentRecording() {
-    if (activeQuestionHasUpload) return;
-    const blobs = videoState.recordedBlobs;
-    if (!blobs.length) return;
+  async function uploadCurrentRecording(blobs?: Blob[], recordingStartMs?: number, questionIdx?: number) {
+    // Use provided parameters or fall back to state (for retry button)
+    const recordedBlobs = blobs ?? videoState.recordedBlobs;
+    const startMs = recordingStartMs ?? videoState.recordingStartedAtMs;
+    const qIndex = questionIdx ?? videoState.activeQuestionIndex;
 
-    const combinedBlob = new Blob(blobs, { type: "video/webm" });
+    console.log(`[VIDEO] Upload starting - blobs: ${recordedBlobs.length}, questionIndex: ${qIndex}`);
+
+    if (activeQuestionHasUpload) {
+      console.log("[VIDEO] Upload skipped - already has upload");
+      return;
+    }
+    if (!recordedBlobs.length) {
+      console.log("[VIDEO] Upload skipped - no blobs");
+      return;
+    }
+
+    const combinedBlob = new Blob(recordedBlobs, { type: "video/webm" });
     const sizeBytes = combinedBlob.size;
-    const durationSec = videoState.recordingStartedAtMs
-      ? Math.min(180, Math.ceil((Date.now() - videoState.recordingStartedAtMs) / 1000))
+    const durationSec = startMs
+      ? Math.min(180, Math.ceil((Date.now() - startMs) / 1000))
       : 0;
+
+    console.log(`[VIDEO] Combined blob size: ${sizeBytes} bytes, duration: ${durationSec}s`);
 
     setVideoState((s) => ({ ...s, uploadProgress: "uploading" }));
     try {
+      console.log(`[VIDEO] Requesting upload URL for question ${qIndex}`);
       const urlResponse = await fetch("/api/video/upload-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           token: props.token,
-          questionIndex: videoState.activeQuestionIndex,
+          questionIndex: qIndex,
           contentType: "video/webm",
         }),
       });
@@ -1085,6 +1105,7 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
       if (!urlResponse.ok) throw new Error(await urlResponse.text());
 
       const { signedUrl, storagePath } = (await urlResponse.json()) as { signedUrl: string; storagePath: string };
+      console.log(`[VIDEO] Got signed URL, uploading to storage...`);
 
       const uploadResponse = await fetch(signedUrl, {
         method: "PUT",
@@ -1093,13 +1114,15 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
       });
 
       if (!uploadResponse.ok) throw new Error(`Upload failed: ${uploadResponse.status}`);
+      console.log(`[VIDEO] Upload to storage successful`);
 
+      console.log(`[VIDEO] Committing upload metadata...`);
       const commitResponse = await fetch("/api/video/commit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           token: props.token,
-          questionIndex: videoState.activeQuestionIndex,
+          questionIndex: qIndex,
           storagePath,
           durationSec,
           sizeBytes,
@@ -1108,19 +1131,23 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
       });
 
       if (!commitResponse.ok) throw new Error(await commitResponse.text());
+      console.log(`[VIDEO] Commit successful`);
 
-      const nextRecordings = [...(answers.video?.recordings ?? [])].filter((r) => r.questionIndex !== videoState.activeQuestionIndex);
+      const nextRecordings = [...(answers.video?.recordings ?? [])].filter((r) => r.questionIndex !== qIndex);
       nextRecordings.push({
-        questionIndex: videoState.activeQuestionIndex,
+        questionIndex: qIndex,
         storagePath,
         durationSec,
         sizeBytes,
         createdAtIso: nowIso(),
       });
 
+      console.log(`[VIDEO] Saving recordings to state, total: ${nextRecordings.length}`);
       setAnswers((prev) => ({ ...prev, video: { ...(prev.video ?? {}), recordings: nextRecordings } }));
       setVideoState((s) => ({ ...s, uploadProgress: "uploaded" }));
+      console.log(`[VIDEO] Upload complete for question ${qIndex}`);
     } catch (e: any) {
+      console.error(`[VIDEO] Upload error:`, e);
       setVideoState((s) => ({ ...s, uploadProgress: "error", lastError: e?.message ?? "Upload failed" }));
     }
   }
