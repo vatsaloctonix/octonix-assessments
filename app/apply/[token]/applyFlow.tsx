@@ -389,6 +389,7 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
     return (
       ai?.promptTask1 !== undefined && ai.promptTask1.trim().length > 0 &&
       ai?.promptTask2 !== undefined && ai.promptTask2.trim().length > 0 &&
+      ai?.promptTask3Problem !== undefined && ai.promptTask3Problem.trim().length > 0 &&
       ai?.promptTask3 !== undefined && ai.promptTask3.trim().length > 0
     );
   };
@@ -771,15 +772,31 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
           />
         </div>
 
-        <div className="space-y-1">
+        <div className="space-y-1 md:col-span-2">
           <TinyLabel>Prompt task 3</TinyLabel>
-          <Muted>Pick any daily problem that you are facing, write a prompt and make AI solve it in the most logical way</Muted>
-          <Textarea
-            rows={6}
-            value={answers.aiUsage?.promptTask3 ?? ""}
-            onChange={(e) => saveAnswers({ aiUsage: { ...(answers.aiUsage ?? {}), promptTask3: e.target.value } })}
-            disabled={isSubmitted}
-          />
+          <Muted>Pick any daily problem that you are facing and write a prompt to make AI solve it</Muted>
+
+          <div className="mt-3 space-y-1">
+            <TinyLabel>Your problem</TinyLabel>
+            <Textarea
+              rows={3}
+              value={answers.aiUsage?.promptTask3Problem ?? ""}
+              onChange={(e) => saveAnswers({ aiUsage: { ...(answers.aiUsage ?? {}), promptTask3Problem: e.target.value } })}
+              placeholder="Describe the problem you're facing..."
+              disabled={isSubmitted}
+            />
+          </div>
+
+          <div className="mt-3 space-y-1">
+            <TinyLabel>Your prompt for AI</TinyLabel>
+            <Textarea
+              rows={6}
+              value={answers.aiUsage?.promptTask3 ?? ""}
+              onChange={(e) => saveAnswers({ aiUsage: { ...(answers.aiUsage ?? {}), promptTask3: e.target.value } })}
+              placeholder="Write the prompt you would use to solve this problem..."
+              disabled={isSubmitted}
+            />
+          </div>
         </div>
       </div>
 

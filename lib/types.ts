@@ -21,7 +21,8 @@ export type AiUsageAnswers = {
   automationTools?: string;
   promptTask1?: string;
   promptTask2?: string;
-  promptTask3?: string;
+  promptTask3Problem?: string; // The problem the candidate is facing
+  promptTask3?: string; // The prompt they would use to solve the problem
 };
 
 export type DomainSelectionAnswers = {
