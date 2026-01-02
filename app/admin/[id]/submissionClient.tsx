@@ -61,21 +61,27 @@ export default function AdminSubmissionClient(props: { id: string }) {
     });
   };
 
-  const exportPDF = () => {
+  const exportFullPDF = () => {
     if (!item) return;
-
-    // Save current state
     const previousSections = new Set(expandedSections);
-
-    // Expand all sections for export
     const allSections = new Set(["step1", "step2", "step3", "step4", "step4coding", "videos", "proctoring", "ai"]);
     setExpandedSections(allSections);
-
-    // Wait for DOM to fully render all sections (increased timeout for reliability)
     setTimeout(() => {
       window.print();
+      const restoreState = () => {
+        setExpandedSections(previousSections);
+        window.removeEventListener("afterprint", restoreState);
+      };
+      window.addEventListener("afterprint", restoreState);
+    }, 400);
+  };
 
-      // Restore previous state after print dialog closes
+  const exportAIResults = () => {
+    if (!item) return;
+    const previousSections = new Set(expandedSections);
+    setExpandedSections(new Set(["ai"])); // Only expand AI section
+    setTimeout(() => {
+      window.print();
       const restoreState = () => {
         setExpandedSections(previousSections);
         window.removeEventListener("afterprint", restoreState);
@@ -132,8 +138,11 @@ export default function AdminSubmissionClient(props: { id: string }) {
             <Button variant="ghost" onClick={() => (window.location.href = "/admin")}>
               Back
             </Button>
-            <Button variant="ghost" onClick={exportPDF}>
-              Export PDF
+            <Button variant="ghost" onClick={exportFullPDF}>
+              📄 Full Export
+            </Button>
+            <Button variant="ghost" onClick={exportAIResults}>
+              🎯 AI Results Export
             </Button>
             <Button
               variant="ghost"
