@@ -17,6 +17,7 @@ export async function POST(_: Request, context: { params: Promise<{ id: string }
     roleLabel,
     answers: item.answers ?? {},
     proctoring: item.proctoring ?? {},
+    videoBehavior: item.video_behavior ?? {},
   });
 
   const { error: updateError } = await supabase

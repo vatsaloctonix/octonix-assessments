@@ -36,6 +36,7 @@ export async function evaluateWithGroq(input: {
   roleLabel: string | null;
   answers: unknown;
   proctoring: unknown;
+  videoBehavior: unknown;
 }): Promise<GroqEvaluation> {
   const apiKey = requireEnv("GROQ_API_KEY");
   const model = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
@@ -50,6 +51,13 @@ export async function evaluateWithGroq(input: {
     "- overallScore0to100: Trainability + basic aptitude (60-80 is typical)",
     "- honestySignal0to10, aiTooling0to10, promptEngineering0to10, domainBasics0to10, codingBasics0to10, communication0to10: Rate 0-10",
     "- integrityRisk0to10: 0 = clean, 10 = very suspicious proctoring events",
+    "",
+    "VIDEO BEHAVIOR EVALUATION (if provided):",
+    "Use video behavior data to assess communication0to10 score:",
+    "- GOOD indicators: tone (calm/confident/professional), speed 6-7/10, low repetitive words, smooth flow, thoughtful pauses, appropriate hand movements",
+    "- BAD indicators: excessive 'like/uhh/ummm', long gaps (>3s), nervous tone, rushed/very slow speech, no thought before answering",
+    "- If behavior data is missing or empty, don't penalize - score communication based on text answers only",
+    "- Question-specific good signs: starting ASAP (Q3), breaking into parts (Q1/Q2/Q4), saying 'it depends' (Q5), discussing improvement (Q4)",
     "",
     "OUTPUT MUST include ALL fields in this EXACT format:",
     "{",
@@ -84,6 +92,7 @@ export async function evaluateWithGroq(input: {
     roleLabel: input.roleLabel,
     answers: input.answers,
     proctoring: input.proctoring,
+    videoBehavior: input.videoBehavior,
     outputSchema: GroqScoreSchema.shape,
   };
 

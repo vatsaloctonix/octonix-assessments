@@ -141,7 +141,11 @@ export default function AdminSubmissionClient(props: { id: string }) {
             <Button variant="ghost" onClick={exportFullPDF}>
               📄 Full Export
             </Button>
-            <Button variant="ghost" onClick={exportAIResults}>
+            <Button
+              variant="ghost"
+              onClick={exportAIResults}
+              disabled={!Boolean((item.ai_evaluations as any)?.overall)}
+            >
               🎯 AI Results Export
             </Button>
             <Button
@@ -200,39 +204,82 @@ export default function AdminSubmissionClient(props: { id: string }) {
               </button>
             </div>
 
-            {/* Trainer Summary - PROMINENT */}
-            {(item.ai_evaluations as any).overall.trainerSummary && (
-              <>
-                <div className="mt-4 rounded-2xl border-2 border-blue-500 bg-blue-50 p-4 print-block">
-                  <div className="text-sm font-bold text-blue-900 mb-3">📋 Quick Trainer Summary</div>
-                  <div className="space-y-2 text-sm">
-                    <div className="rounded-lg bg-white px-3 py-2">
-                      <div className="text-[11px] font-semibold text-black/50 uppercase tracking-wide">Knowledge Level</div>
-                      <div className="mt-1 text-black/80">{(item.ai_evaluations as any).overall.trainerSummary.knowledgeLevel}</div>
+            {/* Clean Trainer-Focused Results */}
+            {(item.ai_evaluations as any).overall.trainerSummary ? (
+              <div className="mt-4 space-y-3">
+                {/* Availability */}
+                <div className="rounded-lg border border-black/10 bg-white p-3">
+                  <div className="text-xs font-semibold text-black/60">📅 Availability</div>
+                  <div className="mt-1 text-sm">{(item.ai_evaluations as any).overall.trainerSummary.availability}</div>
+                </div>
+
+                {/* Knowledge Scores */}
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="rounded-lg border border-black/10 bg-white p-3">
+                    <div className="text-xs font-semibold text-black/60">📚 Domain Knowledge</div>
+                    <div className="mt-1 text-2xl font-bold">{(item.ai_evaluations as any).overall.sectionScores.domainBasics0to10}/10</div>
+                  </div>
+                  {roleInfo?.codingLanguage && (item.ai_evaluations as any).overall.sectionScores.codingBasics0to10 !== undefined && (
+                    <div className="rounded-lg border border-black/10 bg-white p-3">
+                      <div className="text-xs font-semibold text-black/60">💻 Coding Level</div>
+                      <div className="mt-1 text-2xl font-bold">{(item.ai_evaluations as any).overall.sectionScores.codingBasics0to10}/10</div>
                     </div>
-                    <div className="rounded-lg bg-white px-3 py-2">
-                      <div className="text-[11px] font-semibold text-black/50 uppercase tracking-wide">Availability</div>
-                      <div className="mt-1 text-black/80">{(item.ai_evaluations as any).overall.trainerSummary.availability}</div>
-                    </div>
-                    <div className="grid md:grid-cols-2 gap-2">
-                      <div className="rounded-lg bg-white px-3 py-2">
-                        <div className="text-[11px] font-semibold text-black/50 uppercase tracking-wide">Best Fit</div>
-                        <div className="mt-1 text-black/80">{(item.ai_evaluations as any).overall.trainerSummary.bestFit}</div>
-                      </div>
-                      <div className="rounded-lg bg-white px-3 py-2">
-                        <div className="text-[11px] font-semibold text-black/50 uppercase tracking-wide">Training Needs</div>
-                        <div className="mt-1 text-black/80">{(item.ai_evaluations as any).overall.trainerSummary.trainingNeeds}</div>
-                      </div>
-                    </div>
-                    <div className="rounded-lg bg-white px-3 py-2 border-2 border-green-300">
-                      <div className="text-[11px] font-semibold text-black/50 uppercase tracking-wide">Ready to Start?</div>
-                      <div className="mt-1 text-lg font-bold text-green-700">{(item.ai_evaluations as any).overall.trainerSummary.readyToStart}</div>
+                  )}
+                </div>
+
+                {/* Video Links */}
+                {videoLinks.length > 0 && (
+                  <div className="rounded-lg border border-black/10 bg-white p-3">
+                    <div className="text-xs font-semibold text-black/60 mb-2">🎥 Videos</div>
+                    <div className="flex flex-wrap gap-2">
+                      {videoLinks.map((v) => (
+                        <a key={v.questionIndex} href={v.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
+                          Q{v.questionIndex + 1}
+                        </a>
+                      ))}
                     </div>
                   </div>
+                )}
+
+                {/* Behavior */}
+                {item.video_behavior && Object.keys(item.video_behavior).length > 0 ? (
+                  <div className="rounded-lg border border-black/10 bg-white p-3">
+                    <div className="text-xs font-semibold text-black/60 mb-2">🎭 Behavior</div>
+                    <div className="space-y-1 text-xs">
+                      {item.video_behavior.tone && item.video_behavior.tone.length > 0 && (
+                        <div>
+                          <span className="font-semibold">Tone:</span>{" "}
+                          {item.video_behavior.tone.map((t, i) => {
+                            const isGood = ["calm", "confident", "professional"].includes(t);
+                            return <span key={t} className={isGood ? "text-green-700" : "text-orange-700"}>{t}{i < item.video_behavior!.tone!.length - 1 ? ", " : ""}</span>;
+                          })}
+                        </div>
+                      )}
+                      {item.video_behavior.speed !== undefined && (
+                        <div>
+                          <span className="font-semibold">Speed:</span>{" "}
+                          <span className={item.video_behavior.speed >= 6 && item.video_behavior.speed <= 7 ? "text-green-700" : "text-orange-700"}>
+                            {item.video_behavior.speed}/10 {item.video_behavior.speed >= 6 && item.video_behavior.speed <= 7 ? "✓" : ""}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
+                    <div className="text-xs text-orange-800">⚠️ Fill video behavior criteria above for behavior analysis</div>
+                  </div>
+                )}
+
+                {/* Ready Status */}
+                <div className="rounded-lg border-2 border-green-500 bg-green-50 p-3 text-center">
+                  <div className="text-xs font-semibold text-green-900">Ready to Start?</div>
+                  <div className="mt-1 text-xl font-bold text-green-700">{(item.ai_evaluations as any).overall.trainerSummary.readyToStart}</div>
                 </div>
-                <Divider />
-              </>
-            )}
+              </div>
+            ) : null}
+
+            <Divider />
 
             <div className="mt-2 grid gap-2 md:grid-cols-2 text-sm">
               <div className="rounded-xl border border-black/10 px-3 py-2">
