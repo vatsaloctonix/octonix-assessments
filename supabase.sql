@@ -54,3 +54,65 @@ create index if not exists idx_video_access_tokens_expires on public.video_acces
 create index if not exists idx_video_access_tokens_assessment on public.video_access_tokens(assessment_id);
 
 alter table public.video_access_tokens enable row level security;
+
+-- ==============================================================================
+-- AUTH SYSTEM: Super Admin + Trainer roles
+-- ==============================================================================
+
+-- Admins table (both super admins and trainers)
+create table if not exists public.admins (
+  id uuid primary key default gen_random_uuid(),
+  email text unique not null,
+  password_hash text not null,
+  role text not null check (role in ('super_admin', 'trainer')),
+  name text not null,
+  is_active boolean not null default true,
+  created_by uuid null references public.admins(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Sessions table for auth
+create table if not exists public.sessions (
+  id uuid primary key default gen_random_uuid(),
+  admin_id uuid not null references public.admins(id) on delete cascade,
+  token text unique not null,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+
+-- Indexes for performance
+create index if not exists idx_admins_email on public.admins(email);
+create index if not exists idx_admins_role on public.admins(role);
+create index if not exists idx_sessions_token on public.sessions(token);
+create index if not exists idx_sessions_admin_id on public.sessions(admin_id);
+create index if not exists idx_sessions_expires on public.sessions(expires_at);
+
+-- Trigger for admins updated_at
+drop trigger if exists trg_admins_updated_at on public.admins;
+create trigger trg_admins_updated_at
+before update on public.admins
+for each row execute function public.set_updated_at();
+
+-- Add created_by_trainer_id to candidate_assessments
+alter table public.candidate_assessments add column if not exists created_by_trainer_id uuid null references public.admins(id) on delete set null;
+
+create index if not exists idx_assessments_created_by on public.candidate_assessments(created_by_trainer_id);
+
+-- RLS policies
+alter table public.admins enable row level security;
+alter table public.sessions enable row level security;
+
+-- Auto-cleanup expired sessions (run periodically via cron)
+create or replace function public.cleanup_expired_sessions()
+returns void as $$
+begin
+  delete from public.sessions where expires_at < now();
+end;
+$$ language plpgsql;
+
+-- Initial super admin (change password after first login!)
+-- Password: 'admin123' (CHANGE THIS IN PRODUCTION!)
+insert into public.admins (email, password_hash, role, name, is_active)
+values ('admin@octonix.com', '$2b$10$rZ8kVqK5lGxW3E7mJ9xOuuLXhH9xP4tY6qR2wN3vB5cA8dF7gH0iS', 'super_admin', 'Super Admin', true)
+on conflict (email) do nothing;

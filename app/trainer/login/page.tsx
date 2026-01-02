@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input, Card } from "@/components/ui";
 
-export default function AdminLoginPage() {
+export default function TrainerLoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,15 +31,15 @@ export default function AdminLoginPage() {
         return;
       }
 
-      // Check if super admin
-      if (data.admin.role !== "super_admin") {
-        setError("Access denied. Super admin only.");
+      // Check if trainer
+      if (data.admin.role !== "trainer") {
+        setError("Access denied. Trainer only.");
         setLoading(false);
         return;
       }
 
-      // Redirect to dashboard
-      router.push("/admin/dashboard");
+      // Redirect to trainer dashboard
+      router.push("/trainer");
       router.refresh();
     } catch (err) {
       setError("An error occurred. Please try again.");
@@ -49,7 +49,7 @@ export default function AdminLoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <Card title="Super Admin Login" className="w-full max-w-md">
+      <Card title="Trainer Login" className="w-full max-w-md">
         <form onSubmit={handleLogin} className="space-y-4">
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -65,7 +65,7 @@ export default function AdminLoginPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@octonix.com"
+              placeholder="trainer@octonix.com"
               required
               disabled={loading}
             />
@@ -90,7 +90,7 @@ export default function AdminLoginPage() {
           </Button>
 
           <div className="text-center text-xs text-black/50 mt-4">
-            Trainer? <a href="/trainer/login" className="text-blue-600 hover:underline">Login here</a>
+            Super Admin? <a href="/admin/login" className="text-blue-600 hover:underline">Login here</a>
           </div>
         </form>
       </Card>
