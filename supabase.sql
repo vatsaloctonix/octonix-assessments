@@ -114,5 +114,5 @@ $$ language plpgsql;
 -- Initial super admin (change password after first login!)
 -- Password: 'admin123' (CHANGE THIS IN PRODUCTION!)
 insert into public.admins (email, password_hash, role, name, is_active)
-values ('admin@octonix.com', '$2b$10$rZ8kVqK5lGxW3E7mJ9xOuuLXhH9xP4tY6qR2wN3vB5cA8dF7gH0iS', 'super_admin', 'Super Admin', true)
+values ('admin@octonix.com', '$2b$10$lbEVGEtiDhjnfjvjRovBxuRUTEJmEuEMqtRJSxScfV5uhZEQNoofS', 'super_admin', 'Super Admin', true)
 on conflict (email) do nothing;
