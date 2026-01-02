@@ -204,24 +204,24 @@ export default function AdminSubmissionClient(props: { id: string }) {
               </button>
             </div>
 
-            {/* Clean Trainer-Focused Results */}
+            {/* AI Results - ONLY Essential Info */}
             {(item.ai_evaluations as any).overall.trainerSummary ? (
               <div className="mt-4 space-y-3">
                 {/* Availability */}
                 <div className="rounded-lg border border-black/10 bg-white p-3">
-                  <div className="text-xs font-semibold text-black/60">📅 Availability</div>
+                  <div className="text-xs font-semibold text-black/60">Availability</div>
                   <div className="mt-1 text-sm">{(item.ai_evaluations as any).overall.trainerSummary.availability}</div>
                 </div>
 
-                {/* Knowledge Scores */}
+                {/* Scores Only */}
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="rounded-lg border border-black/10 bg-white p-3">
-                    <div className="text-xs font-semibold text-black/60">📚 Domain Knowledge</div>
+                    <div className="text-xs font-semibold text-black/60">Domain Knowledge</div>
                     <div className="mt-1 text-2xl font-bold">{(item.ai_evaluations as any).overall.sectionScores.domainBasics0to10}/10</div>
                   </div>
                   {roleInfo?.codingLanguage && (item.ai_evaluations as any).overall.sectionScores.codingBasics0to10 !== undefined && (
                     <div className="rounded-lg border border-black/10 bg-white p-3">
-                      <div className="text-xs font-semibold text-black/60">💻 Coding Level</div>
+                      <div className="text-xs font-semibold text-black/60">Coding Level</div>
                       <div className="mt-1 text-2xl font-bold">{(item.ai_evaluations as any).overall.sectionScores.codingBasics0to10}/10</div>
                     </div>
                   )}
@@ -230,7 +230,7 @@ export default function AdminSubmissionClient(props: { id: string }) {
                 {/* Video Links */}
                 {videoLinks.length > 0 && (
                   <div className="rounded-lg border border-black/10 bg-white p-3">
-                    <div className="text-xs font-semibold text-black/60 mb-2">🎥 Videos</div>
+                    <div className="text-xs font-semibold text-black/60 mb-2">Videos</div>
                     <div className="flex flex-wrap gap-2">
                       {videoLinks.map((v) => (
                         <a key={v.questionIndex} href={v.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
@@ -241,10 +241,10 @@ export default function AdminSubmissionClient(props: { id: string }) {
                   </div>
                 )}
 
-                {/* Behavior */}
+                {/* Behavior Good vs Bad */}
                 {item.video_behavior && Object.keys(item.video_behavior).length > 0 ? (
                   <div className="rounded-lg border border-black/10 bg-white p-3">
-                    <div className="text-xs font-semibold text-black/60 mb-2">🎭 Behavior</div>
+                    <div className="text-xs font-semibold text-black/60 mb-2">Behavior</div>
                     <div className="space-y-1 text-xs">
                       {item.video_behavior.tone && item.video_behavior.tone.length > 0 && (
                         <div>
@@ -259,7 +259,7 @@ export default function AdminSubmissionClient(props: { id: string }) {
                         <div>
                           <span className="font-semibold">Speed:</span>{" "}
                           <span className={item.video_behavior.speed >= 6 && item.video_behavior.speed <= 7 ? "text-green-700" : "text-orange-700"}>
-                            {item.video_behavior.speed}/10 {item.video_behavior.speed >= 6 && item.video_behavior.speed <= 7 ? "✓" : ""}
+                            {item.video_behavior.speed}/10
                           </span>
                         </div>
                       )}
@@ -267,59 +267,11 @@ export default function AdminSubmissionClient(props: { id: string }) {
                   </div>
                 ) : (
                   <div className="rounded-lg border border-orange-200 bg-orange-50 p-3">
-                    <div className="text-xs text-orange-800">⚠️ Fill video behavior criteria above for behavior analysis</div>
+                    <div className="text-xs text-orange-800">Fill video behavior criteria above for behavior analysis</div>
                   </div>
                 )}
-
-                {/* Ready Status */}
-                <div className="rounded-lg border-2 border-green-500 bg-green-50 p-3 text-center">
-                  <div className="text-xs font-semibold text-green-900">Ready to Start?</div>
-                  <div className="mt-1 text-xl font-bold text-green-700">{(item.ai_evaluations as any).overall.trainerSummary.readyToStart}</div>
-                </div>
               </div>
             ) : null}
-
-            <Divider />
-
-            <div className="mt-2 grid gap-2 md:grid-cols-2 text-sm">
-              <div className="rounded-xl border border-black/10 px-3 py-2">
-                <div className="text-[12px] text-black/60">Overall Score</div>
-                <div className="text-lg font-semibold">{(item.ai_evaluations as any).overall.overallScore0to100}/100</div>
-              </div>
-              <div className="rounded-xl border border-black/10 px-3 py-2">
-                <div className="text-[12px] text-black/60">Integrity Risk</div>
-                <div className="text-lg font-semibold">{(item.ai_evaluations as any).overall.sectionScores.integrityRisk0to10}/10</div>
-              </div>
-            </div>
-            <Divider />
-            <div className="grid gap-3 md:grid-cols-3 text-sm">
-              <div>
-                <div className="text-[12px] font-medium text-black/70">Strengths</div>
-                <ul className="mt-1 list-disc pl-4 text-[12px] text-black/70">
-                  {((item.ai_evaluations as any).overall.strengths ?? []).map((s: string, i: number) => (
-                    <li key={i}>{s}</li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <div className="text-[12px] font-medium text-black/70">Risks</div>
-                <ul className="mt-1 list-disc pl-4 text-[12px] text-black/70">
-                  {((item.ai_evaluations as any).overall.risks ?? []).map((s: string, i: number) => (
-                    <li key={i}>{s}</li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <div className="text-[12px] font-medium text-black/70">Next Steps</div>
-                <ul className="mt-1 list-disc pl-4 text-[12px] text-black/70">
-                  {((item.ai_evaluations as any).overall.recommendedNextSteps ?? []).map((s: string, i: number) => (
-                    <li key={i}>{s}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-            <Divider />
-            <div className="text-[12px] text-black/70">{(item.ai_evaluations as any).overall.shortSummary}</div>
           </div>
         )}
 
