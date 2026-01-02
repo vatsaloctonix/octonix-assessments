@@ -151,6 +151,79 @@ MAJOR FEATURES IMPLEMENTED
    - lib/groq.ts (answerValidations in schema, validation prompt)
    - app/admin/[id]/submissionClient.tsx (color-coded display)
 
+7. AUTHENTICATION SYSTEM (SUPER ADMIN + TRAINER)
+   ----------------------------------------------
+   Complete multi-role authentication system with session-based auth.
+
+   ROLES:
+   - Super Admin: Can create/manage trainers, view all assessments
+   - Trainer: Can create assessment links, view all assessments, run AI scoring
+
+   DEFAULT CREDENTIALS:
+   - Super Admin Email: admin@octonix.com
+   - Super Admin Password: admin123 (CHANGE IN PRODUCTION!)
+
+   LOGIN PAGES:
+   - Super Admin: /admin/login (redirects to /admin/dashboard)
+   - Trainer: /trainer/login (redirects to /trainer)
+
+   AUTHENTICATION FLOW:
+   - Login → POST /api/auth/login
+   - Creates session in database with 7-day expiry
+   - Sets httpOnly cookie (octonix_session)
+   - Validates role (super_admin or trainer)
+   - Redirects to appropriate dashboard
+
+   PROTECTED ROUTES:
+   - /admin (trainer dashboard, auth required)
+   - /trainer (trainer dashboard, auth required)
+   - /admin/[id] (submission view, auth required)
+   - /trainer/[id] (submission view, auth required)
+   - /admin/dashboard (super admin only)
+
+   SUPER ADMIN CAPABILITIES:
+   - View all trainers (active/inactive status)
+   - Create new trainers (email, name, password)
+   - Activate/deactivate trainers
+   - Soft delete trainers (sets is_active = false)
+   - View all assessments sorted by: recent, high score, low score, submitted
+   - Dashboard with stats: total, submitted, in_progress, evaluated
+
+   TRAINER CAPABILITIES:
+   - Create assessment links with custom labels
+   - View all assessments (shared pool)
+   - Run AI scoring on submissions
+   - View candidate details at /trainer/[id]
+   - Export PDFs (Full + AI Results)
+   - Delete assessments (single or bulk)
+
+   SESSION MANAGEMENT:
+   - 7-day session expiry
+   - Auto-logout on session expiry
+   - Auto-logout when trainer deactivated
+   - Session cleanup on trainer deletion
+   - Concurrent logins supported
+
+   FILES:
+   - lib/auth.ts (password hashing, session management, auth helpers)
+   - app/api/auth/login/route.ts (login endpoint)
+   - app/api/auth/logout/route.ts (logout endpoint)
+   - app/api/auth/me/route.ts (current user endpoint)
+   - app/api/super-admin/trainers/route.ts (list/create trainers)
+   - app/api/super-admin/trainers/[id]/route.ts (update/delete trainer)
+   - app/api/super-admin/dashboard/route.ts (dashboard data)
+   - app/admin/login/page.tsx (super admin login UI)
+   - app/trainer/login/page.tsx (trainer login UI)
+   - app/admin/dashboard/page.tsx (super admin dashboard)
+   - app/trainer/page.tsx (trainer dashboard)
+   - app/admin/page.tsx (legacy admin view, now requires auth)
+
+8. REMOVED FEATURES
+   -----------------
+   - Family pressure question removed from Step 1
+   - Validation no longer requires pressureNotes field
+   - Admin/trainer views no longer display pressure notes
+
 ================================================================================
 DATABASE SCHEMA
 ================================================================================
@@ -166,10 +239,33 @@ PRIMARY TABLE: candidate_assessments
 - proctoring: JSONB (integrity events and counts)
 - videos: JSONB (video metadata)
 - ai_evaluations: JSONB (AI scoring results including answerValidations)
-- video_behavior: JSONB (admin's manual video evaluation) ← NEW
+- video_behavior: JSONB (admin's manual video evaluation)
+- created_by_trainer_id: UUID (nullable, foreign key to admins)
 - created_at: TIMESTAMPTZ
 - updated_at: TIMESTAMPTZ (auto-updated via trigger)
 - submitted_at: TIMESTAMPTZ (nullable)
+
+AUTH TABLE: admins
+------------------
+Stores both super admins and trainers:
+- id: UUID (primary key)
+- email: TEXT (unique, not null)
+- password_hash: TEXT (bcrypt hash, not null)
+- role: TEXT (CHECK: 'super_admin' or 'trainer')
+- name: TEXT (not null)
+- is_active: BOOLEAN (default true, for soft delete)
+- created_by: UUID (nullable, foreign key to admins - who created this admin)
+- created_at: TIMESTAMPTZ
+- updated_at: TIMESTAMPTZ (auto-updated via trigger)
+
+AUTH TABLE: sessions
+--------------------
+Session-based authentication with 7-day expiry:
+- id: UUID (primary key)
+- admin_id: UUID (foreign key to admins, cascade on delete)
+- token: TEXT (unique, 64-char hex string)
+- expires_at: TIMESTAMPTZ (7 days from creation)
+- created_at: TIMESTAMPTZ
 
 VIDEO ACCESS TOKENS TABLE: video_access_tokens
 ----------------------------------------------
@@ -184,13 +280,24 @@ For one-time password-protected video links (future feature):
 - is_used: BOOLEAN
 - created_at: TIMESTAMPTZ
 
+INDEXES:
+--------
+- idx_admins_email (admins.email)
+- idx_admins_role (admins.role)
+- idx_sessions_token (sessions.token)
+- idx_sessions_admin_id (sessions.admin_id)
+- idx_sessions_expires (sessions.expires_at)
+- idx_assessments_created_by (candidate_assessments.created_by_trainer_id)
+
 MIGRATION COMMANDS:
 ------------------
--- Add video behavior column
-ALTER TABLE candidate_assessments
-ADD COLUMN IF NOT EXISTS video_behavior JSONB NOT NULL DEFAULT '{}'::jsonb;
-
 -- Run entire supabase.sql file in Supabase SQL Editor if starting fresh
+-- OR run fix-admin-password.sql to update super admin password hash
+
+-- To manually update admin password hash:
+UPDATE admins
+SET password_hash = '$2b$10$lbEVGEtiDhjnfjvjRovBxuRUTEJmEuEMqtRJSxScfV5uhZEQNoofS'
+WHERE email = 'admin@octonix.com';
 
 ================================================================================
 KEY FILE STRUCTURE
@@ -198,16 +305,50 @@ KEY FILE STRUCTURE
 
 /app
   /admin
+    - page.tsx (Legacy admin view, requires auth)
+    - dashboard.tsx ⭐ Shared dashboard component (dynamic /admin or /trainer)
     /[id]
-      - submissionClient.tsx ⭐ Main admin view with all features
+      - page.tsx (Submission detail page with server-side auth)
+      - submissionClient.tsx ⭐ Main view with all features
+    /dashboard
+      - page.tsx ⭐ Super admin dashboard (trainer management + stats)
+    /login
+      - page.tsx ⭐ Super admin login page
+  /trainer
+    - page.tsx ⭐ Trainer dashboard (requires auth, reuses admin/dashboard.tsx)
+    /[id]
+      - page.tsx (Submission detail page with server-side auth)
+      - submissionClient.tsx (Same as admin view)
+    /login
+      - page.tsx ⭐ Trainer login page
   /api
     /admin
       /run-ai-score/[id]
         - route.ts (AI evaluation endpoint)
       /save-video-behavior/[id]
         - route.ts (Save video behavior evaluation)
+      /submissions
+        - route.ts (List all submissions)
       /submissions/[id]
         - route.ts (Fetch submission data)
+      /create-link
+        - route.ts (Create assessment link)
+      /delete
+        - route.ts (Delete assessments - single or bulk)
+    /auth
+      /login
+        - route.ts ⭐ Login endpoint (super admin + trainer)
+      /logout
+        - route.ts ⭐ Logout endpoint
+      /me
+        - route.ts ⭐ Current user endpoint
+    /super-admin
+      /trainers
+        - route.ts ⭐ List/create trainers (super admin only)
+        /[id]
+          - route.ts ⭐ Update/delete trainer (super admin only)
+      /dashboard
+        - route.ts ⭐ Dashboard data with sorting (super admin only)
   /apply/[token]
     - applyFlow.tsx (Candidate assessment flow, uses TimePicker12h)
   - globals.css (Print CSS for PDF exports)
@@ -218,12 +359,14 @@ KEY FILE STRUCTURE
   - ui/ (Button, Card, Input, etc.)
 
 /lib
+  - auth.ts ⭐ Authentication utilities (bcrypt, sessions, helpers)
   - groq.ts ⭐ AI evaluation with Groq API (trainer-focused)
-  - types.ts (TypeScript types including VideoBehaviorEvaluation)
+  - types.ts (TypeScript types including VideoBehaviorEvaluation, Admin, Session)
   - assessmentConfig.ts (Role data, domain questions, coding problems)
   - supabaseServer.ts (Server-side Supabase client)
 
-- supabase.sql ⭐ Database schema with migrations
+- supabase.sql ⭐ Database schema with auth tables
+- fix-admin-password.sql ⭐ SQL script to fix super admin password hash
 
 ================================================================================
 ENVIRONMENT VARIABLES (.env.local)
@@ -305,17 +448,47 @@ COMMON ISSUES & FIXES
 TESTING CHECKLIST
 ================================================================================
 
+AUTHENTICATION:
+□ Super admin login at /admin/login with admin@octonix.com / admin123
+□ Trainer login at /trainer/login (create trainer first)
+□ Protected routes redirect to login when not authenticated
+□ Session persists for 7 days
+□ Logout works correctly
+□ Cannot access /admin/dashboard as trainer
+□ Cannot access protected pages without login
+
+SUPER ADMIN FLOW:
+□ Login redirects to /admin/dashboard
+□ View trainer list (active/inactive status)
+□ Create new trainer (email validation, password min 6 chars)
+□ Activate/deactivate trainer (auto-logout on deactivate)
+□ Delete trainer (soft delete, sets is_active = false)
+□ View all assessments with sorting (recent, high score, low score, submitted)
+□ Dashboard shows stats (total, submitted, in_progress, evaluated)
+□ Click assessment redirects to /trainer/[id]
+
+TRAINER FLOW:
+□ Login redirects to /trainer
+□ Create assessment link with custom label
+□ Auto-copy link to clipboard
+□ View all submissions (shared pool with other trainers)
+□ Click submission opens /trainer/[id]
+□ Delete single assessment
+□ Bulk select and delete multiple assessments
+□ Run AI Scoring
+□ Export PDFs (Full + AI Results)
+
 CANDIDATE FLOW:
-□ Step 1: Personal info with hobby tags, 12-hour time picker
+□ Step 1: Personal info with hobby tags, 12-hour time picker (NO pressure question)
 □ Step 2: AI tooling questions, 3 prompt tasks
 □ Step 3: Domain selection
 □ Step 4: Domain questions (MCQ + text), coding problems
 □ Step 5: 5 video recordings with HackerRank-style UI
 □ Submission screen with 15-second redirect
 
-ADMIN FLOW:
-□ View all submissions in admin dashboard
+SUBMISSION VIEW (ADMIN/TRAINER):
 □ Expand/collapse all sections (step1-5, videos, proctoring, ai)
+□ NO pressure notes displayed in Step 1
 □ Video behavior form (only shows if videos exist)
 □ Save video behavior independently
 □ Run AI Scoring (includes behavior data)
