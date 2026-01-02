@@ -1,0 +1,391 @@
+================================================================================
+OCTONIX ASSESSMENT PLATFORM - PROJECT CONTEXT
+Last Updated: January 2026
+================================================================================
+
+PROJECT OVERVIEW
+================================================================================
+This is a comprehensive assessment platform for Octonix Solutions to evaluate
+training candidates (NOT experienced developers). Focus is on TRAINABILITY,
+not perfection. The platform consists of:
+- Candidate-facing assessment flow (5 steps)
+- Admin dashboard for reviewing submissions
+- AI-powered evaluation using Groq API (llama-3.3-70b-versatile)
+- Video recording and behavior analysis
+- PDF export functionality
+
+TECHNOLOGY STACK
+================================================================================
+- Next.js 16 (App Router)
+- React 19
+- TypeScript (strict mode)
+- Tailwind CSS
+- Supabase PostgreSQL (JSONB for flexible data)
+- Groq API for AI evaluation
+- Vercel for deployment
+- Git/GitHub for version control
+
+================================================================================
+MAJOR FEATURES IMPLEMENTED
+================================================================================
+
+1. VIDEO BEHAVIOR EVALUATION SYSTEM
+   --------------------------------
+   Admins can evaluate candidate video responses with detailed criteria:
+
+   COMMON CRITERIA (all 5 videos):
+   - Repetitive words: like, you know, uhh, ummm (with counts)
+   - Custom repetitive words (add any word with count)
+   - Average gap duration between sentences (seconds)
+   - Tone: calm, confident, nervous, professional, aggressive, monotone (multi-select)
+   - Speed: 0-10 scale (6-7 is ideal)
+
+   QUESTION-SPECIFIC CRITERIA:
+   - Question A: Parted in two halves? Hand movements?
+   - Question B: Parted in two halves? Hand movements?
+   - Question C: Started speaking ASAP? Hand movements?
+   - Question D: Parted in two questions? Talked about improving weakness?
+   - Question E: Thought before answering? Said "it depends"?
+
+   FILES:
+   - components/VideoBehaviorForm.tsx (purple-themed form with +/- buttons)
+   - app/api/admin/save-video-behavior/[id]/route.ts (API endpoint)
+   - Database: video_behavior JSONB column in candidate_assessments table
+
+2. 12-HOUR AM/PM TIME PICKER
+   --------------------------
+   Replaced 24-hour time inputs with user-friendly 12-hour AM/PM format.
+
+   FEATURES:
+   - Three dropdowns: hour (1-12), minutes (00/15/30/45), period (AM/PM)
+   - Stores as 24-hour format (HH:MM) in database
+   - Conversion functions: to12Hour() and to24Hour()
+
+   FILES:
+   - components/TimePicker12h.tsx (new component)
+   - app/apply/[token]/applyFlow.tsx (uses TimePicker12h for availability)
+
+3. DUAL EXPORT SYSTEM
+   -------------------
+   Two types of PDF exports for different purposes:
+
+   A. FULL EXPORT
+   - Expands ALL sections (step1-5, videos, proctoring, ai)
+   - Complete detailed view of entire submission
+
+   B. AI RESULTS EXPORT
+   - ONLY expands AI section
+   - Clean, minimal trainer-focused data
+   - Button disabled if AI evaluation not yet run
+
+   FILES:
+   - app/admin/[id]/submissionClient.tsx (exportFullPDF, exportAIResults)
+   - app/globals.css (print CSS for proper formatting)
+
+4. TRAINER-FOCUSED AI EVALUATION
+   ------------------------------
+   AI system completely redesigned for training candidates, not hiring.
+
+   PHILOSOPHY:
+   - "Right" beats "Perfect"
+   - Focus on TRAINABILITY, not expertise
+   - Be lenient: 60-80 score is typical
+   - Give credit for trying and basic understanding
+
+   AI ANALYZES:
+   - Text answers (AI prompts, domain questions)
+   - Video behavior data (tone, speed, gaps, filler words)
+   - Proctoring events (integrity risk)
+   - Coding attempts (basic understanding)
+
+   OUTPUT INCLUDES:
+   - Overall trainability score (0-100)
+   - Section scores: honesty, AI tooling, prompt engineering, domain basics, coding, communication, integrity risk
+   - Answer validations: text answers marked green (acceptable) or red (not acceptable)
+   - Trainer summary: availability, knowledge level, best fit, training needs, ready to start
+
+   FILES:
+   - lib/groq.ts (AI evaluation logic with detailed prompt)
+   - app/api/admin/run-ai-score/[id]/route.ts (API route)
+
+5. AI RESULTS UI (CLEAN & MINIMAL)
+   --------------------------------
+   Stripped all AI-generated fluff, showing ONLY essential trainer info:
+
+   DISPLAYS:
+   - Availability (timezone/timeslots)
+   - Domain Knowledge score (?/10)
+   - Coding Level score (?/10) - only if role requires coding
+   - Video links (clickable Q1-Q5)
+   - Behavior summary (tone and speed with green/orange color coding)
+
+   REMOVED:
+   - ALL emojis
+   - "Trainable candidate..." summary text
+   - Strengths/Risks/Next Steps lists
+   - "Ready to Start?" status box
+   - Overall Score / Integrity Risk display
+   - Any decorative elements
+
+   FILES:
+   - app/admin/[id]/submissionClient.tsx (lines 207-274)
+
+6. STEP 4 ANSWER VALIDATION
+   -------------------------
+   AI validates text answers in Step 4 (domain questions) with visual indicators.
+
+   HOW IT WORKS:
+   - MCQ answers: Auto-graded against correct answer (existing feature)
+   - Text answers: AI validates for basic understanding
+   - Green background = Acceptable (shows basic concept grasp)
+   - Red background = Not acceptable (wrong/nonsensical/empty)
+   - Gray background = Not yet validated (AI not run)
+
+   AI VALIDATION:
+   - Doesn't expect perfection
+   - Checks if candidate understands basic concept
+   - Returns: {"ml_5": true, "ml_7": false, "pm_1": true}
+   - No display of correct answers, just pass/fail
+
+   FILES:
+   - lib/groq.ts (answerValidations in schema, validation prompt)
+   - app/admin/[id]/submissionClient.tsx (color-coded display)
+
+================================================================================
+DATABASE SCHEMA
+================================================================================
+
+PRIMARY TABLE: candidate_assessments
+------------------------------------
+- id: UUID (primary key)
+- token: TEXT (unique access token)
+- admin_label: TEXT (nullable, for admin organization)
+- status: TEXT (in_progress, submitted, expired)
+- current_step: INTEGER (nullable, for resume functionality)
+- answers: JSONB (all candidate responses)
+- proctoring: JSONB (integrity events and counts)
+- videos: JSONB (video metadata)
+- ai_evaluations: JSONB (AI scoring results including answerValidations)
+- video_behavior: JSONB (admin's manual video evaluation) ← NEW
+- created_at: TIMESTAMPTZ
+- updated_at: TIMESTAMPTZ (auto-updated via trigger)
+- submitted_at: TIMESTAMPTZ (nullable)
+
+VIDEO ACCESS TOKENS TABLE: video_access_tokens
+----------------------------------------------
+For one-time password-protected video links (future feature):
+- id: UUID (primary key)
+- assessment_id: UUID (foreign key to candidate_assessments)
+- question_index: INTEGER
+- storage_path: TEXT
+- password: TEXT
+- expires_at: TIMESTAMPTZ
+- accessed_at: TIMESTAMPTZ (nullable)
+- is_used: BOOLEAN
+- created_at: TIMESTAMPTZ
+
+MIGRATION COMMANDS:
+------------------
+-- Add video behavior column
+ALTER TABLE candidate_assessments
+ADD COLUMN IF NOT EXISTS video_behavior JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+-- Run entire supabase.sql file in Supabase SQL Editor if starting fresh
+
+================================================================================
+KEY FILE STRUCTURE
+================================================================================
+
+/app
+  /admin
+    /[id]
+      - submissionClient.tsx ⭐ Main admin view with all features
+  /api
+    /admin
+      /run-ai-score/[id]
+        - route.ts (AI evaluation endpoint)
+      /save-video-behavior/[id]
+        - route.ts (Save video behavior evaluation)
+      /submissions/[id]
+        - route.ts (Fetch submission data)
+  /apply/[token]
+    - applyFlow.tsx (Candidate assessment flow, uses TimePicker12h)
+  - globals.css (Print CSS for PDF exports)
+
+/components
+  - TimePicker12h.tsx ⭐ 12-hour AM/PM time picker component
+  - VideoBehaviorForm.tsx ⭐ Comprehensive video evaluation form
+  - ui/ (Button, Card, Input, etc.)
+
+/lib
+  - groq.ts ⭐ AI evaluation with Groq API (trainer-focused)
+  - types.ts (TypeScript types including VideoBehaviorEvaluation)
+  - assessmentConfig.ts (Role data, domain questions, coding problems)
+  - supabaseServer.ts (Server-side Supabase client)
+
+- supabase.sql ⭐ Database schema with migrations
+
+================================================================================
+ENVIRONMENT VARIABLES (.env.local)
+================================================================================
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+GROQ_API_KEY=your_groq_api_key
+GROQ_MODEL=llama-3.3-70b-versatile (optional, defaults to this)
+
+NOTE: api crds.txt contains credentials but is in .gitignore
+
+================================================================================
+IMPORTANT IMPLEMENTATION DETAILS
+================================================================================
+
+1. TYPESCRIPT TYPE SAFETY
+   - All props properly typed
+   - Use "as any" sparingly, only for dynamic AI evaluation data
+   - Type casting required for repetitive words in VideoBehaviorForm
+
+2. AI EVALUATION FLOW
+   - Admin clicks "Run AI Scoring"
+   - API fetches: answers, proctoring, video_behavior
+   - Groq API evaluates with detailed prompt
+   - Returns: scores + answerValidations + trainerSummary
+   - Stored in ai_evaluations JSONB column
+   - UI updates to show color-coded results
+
+3. VIDEO BEHAVIOR INTEGRATION
+   - Only shown if videos exist (videoLinks.length > 0)
+   - Saves to database independently from AI evaluation
+   - AI uses behavior data for communication score
+   - Displays in AI Results with green/orange color coding
+
+4. EXPORT FUNCTIONALITY
+   - Uses window.print() with CSS @media print
+   - Temporarily expands sections before print
+   - Restores previous state after print using afterprint event
+   - AI Results Export disabled until AI evaluation exists
+
+5. COLOR CODING CONVENTIONS
+   - Green: Good/Acceptable/Correct
+   - Red: Bad/Not Acceptable/Wrong
+   - Orange: Warning/Needs Attention
+   - Gray: Neutral/Not Yet Evaluated
+   - Purple: Video Behavior form (distinct section)
+
+================================================================================
+COMMON ISSUES & FIXES
+================================================================================
+
+1. GROQ API ERRORS
+   PROBLEM: Zod validation fails, unexpected JSON format
+   FIX: Provide explicit JSON schema example in prompt
+        Include all required fields in example
+        Use response_format: { type: "json_object" }
+
+2. TYPESCRIPT ERRORS
+   PROBLEM: Type inference fails for dynamic JSONB data
+   FIX: Use "as any" for ai_evaluations, video_behavior
+        Proper type casting for union types (repetitive words)
+
+3. PRINT CSS NOT WORKING
+   PROBLEM: Colors/backgrounds not showing in PDF
+   FIX: Add print-color-adjust: exact; to @media print
+        Add -webkit-print-color-adjust: exact;
+
+4. BUTTON PROPS ERROR
+   PROBLEM: "Property 'size' does not exist on Button"
+   FIX: Check component definitions in components/ui
+        Remove unsupported props, use only supported ones
+
+5. PATH ISSUES IN GIT BASH
+   PROBLEM: cd c:\path\to\project fails
+   FIX: Use /c/path/to/project in Git Bash (forward slashes)
+
+================================================================================
+TESTING CHECKLIST
+================================================================================
+
+CANDIDATE FLOW:
+□ Step 1: Personal info with hobby tags, 12-hour time picker
+□ Step 2: AI tooling questions, 3 prompt tasks
+□ Step 3: Domain selection
+□ Step 4: Domain questions (MCQ + text), coding problems
+□ Step 5: 5 video recordings with HackerRank-style UI
+□ Submission screen with 15-second redirect
+
+ADMIN FLOW:
+□ View all submissions in admin dashboard
+□ Expand/collapse all sections (step1-5, videos, proctoring, ai)
+□ Video behavior form (only shows if videos exist)
+□ Save video behavior independently
+□ Run AI Scoring (includes behavior data)
+□ View AI Results (clean, minimal, no emojis)
+□ Step 4 text answers show green/red based on AI validation
+□ Full Export (all sections)
+□ AI Results Export (only AI section, disabled if no evaluation)
+
+AI EVALUATION:
+□ Validates all text answers in Step 4
+□ Uses video behavior for communication score
+□ Returns trainer-focused summary
+□ Stores answerValidations for green/red display
+□ Graceful error handling with user-friendly messages
+
+================================================================================
+FUTURE ENHANCEMENTS (NOT YET IMPLEMENTED)
+================================================================================
+
+1. One-time password-protected video links
+   - video_access_tokens table exists
+   - Implementation pending
+
+2. Video expiry and cleanup
+   - Delete expired videos from storage
+   - Cron job or scheduled function needed
+
+3. Bulk operations
+   - Delete multiple assessments at once
+   - Export multiple results
+
+4. Advanced analytics
+   - Aggregate statistics across candidates
+   - Success rate by domain/role
+   - Common failure patterns
+
+================================================================================
+GIT WORKFLOW
+================================================================================
+
+COMMIT CONVENTIONS:
+- Use descriptive commit messages
+- Include file changes summary
+- Add "🤖 Generated with Claude Code" footer
+- Co-Authored-By: Claude Sonnet 4.5
+
+BRANCHES:
+- main: Production-ready code
+- All changes pushed directly to main (small team)
+
+DEPLOYMENT:
+- Vercel auto-deploys on push to main
+- Environment variables set in Vercel dashboard
+- Build errors appear in Vercel deployment logs
+
+================================================================================
+CONTACT & RESOURCES
+================================================================================
+
+DOCUMENTATION:
+- Next.js: https://nextjs.org/docs
+- Supabase: https://supabase.com/docs
+- Groq API: https://console.groq.com/docs
+- Tailwind: https://tailwindcss.com/docs
+
+IMPORTANT FILES TO NEVER DELETE:
+- supabase.sql (database schema)
+- api crds.txt (credentials, in .gitignore)
+- This file (PROJECT_CONTEXT.txt)
+
+================================================================================
+END OF CONTEXT FILE
+================================================================================
