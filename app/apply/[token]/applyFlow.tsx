@@ -8,6 +8,7 @@ import { z } from "zod";
 import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { java } from "@codemirror/lang-java";
+import { TimePicker12h } from "@/components/TimePicker12h";
 
 const StepNames = [
   "1. Personality",
@@ -605,28 +606,24 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
                       <div className="space-y-2">
                         {slot.ranges.map((range, rangeIndex) => (
                           <div key={rangeIndex} className="flex items-center gap-2 text-sm">
-                            <input
-                              type="time"
+                            <TimePicker12h
                               value={range.start || "09:00"}
-                              onChange={(e) => {
+                              onChange={(value) => {
                                 const newRanges = [...slot.ranges];
-                                newRanges[rangeIndex] = { ...range, start: e.target.value };
+                                newRanges[rangeIndex] = { ...range, start: value };
                                 updateTimeSlot(index, { ranges: newRanges });
                               }}
                               disabled={isSubmitted}
-                              className="rounded border border-black/10 px-2 py-1"
                             />
                             <span>to</span>
-                            <input
-                              type="time"
+                            <TimePicker12h
                               value={range.end || "17:00"}
-                              onChange={(e) => {
+                              onChange={(value) => {
                                 const newRanges = [...slot.ranges];
-                                newRanges[rangeIndex] = { ...range, end: e.target.value };
+                                newRanges[rangeIndex] = { ...range, end: value };
                                 updateTimeSlot(index, { ranges: newRanges });
                               }}
                               disabled={isSubmitted}
-                              className="rounded border border-black/10 px-2 py-1"
                             />
                             {slot.ranges.length > 1 && !isSubmitted && (
                               <Button
