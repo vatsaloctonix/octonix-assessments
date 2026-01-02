@@ -358,13 +358,6 @@ export default function AdminSubmissionClient(props: { id: string }) {
             <Divider />
 
             <div>
-              <div className="text-[12px] font-medium text-black/60">Pressure Handling Notes</div>
-              <div className="mt-1 text-black/70">{item.answers?.personality?.pressureNotes || "-"}</div>
-            </div>
-
-            <Divider />
-
-            <div>
               <div className="text-[12px] font-medium text-black/60">Honesty Commitment</div>
               <div className="mt-1 text-black/70">
                 {item.answers?.personality?.honestyCommitment ? "Yes" : "No"}

@@ -385,7 +385,6 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
     return (
       hobbiesArray.length > 0 &&
       p?.dailyAvailability !== undefined &&
-      p?.pressureNotes !== undefined && p.pressureNotes.trim().length > 0 &&
       p?.honestyCommitment === true
     );
   };
@@ -665,16 +664,6 @@ export default function ApplyFlow(props: { token: string; initialStep?: number }
           })()}
         </div>
 
-        <div className="space-y-1 md:col-span-2">
-          <TinyLabel>Pressure (family / visa / money / deadlines)</TinyLabel>
-          <Textarea
-            rows={4}
-            value={answers.personality?.pressureNotes ?? ""}
-            onChange={(e) => saveAnswers({ personality: { ...(answers.personality ?? {}), pressureNotes: e.target.value } })}
-            placeholder="Write what's actually happening, what are your main stressors right now? so we can keep that in mind."
-            disabled={isSubmitted}
-          />
-        </div>
       </div>
 
       <Divider />
