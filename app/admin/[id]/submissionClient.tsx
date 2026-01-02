@@ -455,6 +455,11 @@ export default function AdminSubmissionClient(props: { id: string }) {
                 const isCorrect = q.kind === "mcq" && q.correctAnswer && answer === q.correctAnswer;
                 const isWrong = q.kind === "mcq" && q.correctAnswer && answer && answer !== q.correctAnswer;
 
+                // AI validation for text answers
+                const aiValidation = (item.ai_evaluations as any)?.overall?.answerValidations?.[q.id];
+                const isTextAcceptable = q.kind === "text" && aiValidation === true;
+                const isTextNotAcceptable = q.kind === "text" && aiValidation === false;
+
                 return (
                   <div key={q.id} className="rounded-lg border border-black/10 p-3">
                     <div className="text-[12px] font-medium text-black/60">
@@ -494,7 +499,14 @@ export default function AdminSubmissionClient(props: { id: string }) {
                       </div>
                     )}
                     {q.kind === "text" && (
-                      <div className="mt-2 rounded-lg border border-black/10 bg-black/5 p-2 text-xs text-black/70">
+                      <div className={[
+                        "mt-2 rounded-lg border p-2 text-xs",
+                        isTextAcceptable
+                          ? "border-green-300 bg-green-50 text-green-900"
+                          : isTextNotAcceptable
+                          ? "border-red-300 bg-red-50 text-red-900"
+                          : "border-black/10 bg-black/5 text-black/70"
+                      ].join(" ")}>
                         {answer || "-"}
                       </div>
                     )}
