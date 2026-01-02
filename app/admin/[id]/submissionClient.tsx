@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { Card, Button, Divider, Muted } from "@/components/ui";
-import type { StoredAssessment } from "@/lib/types";
+import type { StoredAssessment, VideoBehaviorEvaluation } from "@/lib/types";
 import { ROLE_MARKET, DOMAIN_QUESTIONS, CODING_PROBLEMS, VIDEO_QUESTIONS } from "@/lib/assessmentConfig";
+import { VideoBehaviorForm } from "@/components/VideoBehaviorForm";
 
 function safeJson(value: unknown) {
   return JSON.stringify(value, null, 2);
@@ -13,6 +14,7 @@ export default function AdminSubmissionClient(props: { id: string }) {
   const [item, setItem] = useState<StoredAssessment | null>(null);
   const [videoLinks, setVideoLinks] = useState<Array<{ questionIndex: number; url: string }>>([]);
   const [videoTokens, setVideoTokens] = useState<Array<{ questionIndex: number; tokenId: string; password: string; expiresAt: string }>>([]);
+  const [videoBehavior, setVideoBehavior] = useState<VideoBehaviorEvaluation>({});
   const [loading, setLoading] = useState(true);
   const [groqState, setGroqState] = useState<"idle" | "running" | "done" | "error">("idle");
   const [tokensGenerating, setTokensGenerating] = useState(false);
@@ -24,8 +26,24 @@ export default function AdminSubmissionClient(props: { id: string }) {
     const data = await res.json();
     setItem(data.item ?? null);
     setVideoLinks(data.videoLinks ?? []);
+    setVideoBehavior(data.item?.video_behavior || {});
     setLoading(false);
   }
+
+  const saveVideoBehavior = async () => {
+    if (!item) return;
+    try {
+      await fetch(`/api/admin/save-video-behavior/${item.id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(videoBehavior),
+      });
+      alert("Video behavior saved!");
+      await load();
+    } catch (error) {
+      alert("Failed to save. Please try again.");
+    }
+  };
 
   useEffect(() => {
     void load();
@@ -548,6 +566,15 @@ export default function AdminSubmissionClient(props: { id: string }) {
                 <video controls className="mt-3 w-full rounded-xl border border-black/10" src={v.url} />
               </div>
             ))}
+
+            {/* Video Behavior Evaluation Form */}
+            {videoLinks.length > 0 && (
+              <VideoBehaviorForm
+                value={videoBehavior}
+                onChange={setVideoBehavior}
+                onSave={saveVideoBehavior}
+              />
+            )}
 
             {/* One-time Video Access Links for PDF Export */}
             {videoLinks.length > 0 && (
