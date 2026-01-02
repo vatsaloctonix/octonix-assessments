@@ -49,7 +49,7 @@ export function VideoBehaviorForm(props: {
             <div key={word.key} className="flex items-center gap-2">
               <span className="text-xs">{word.label}:</span>
               <button onClick={() => updateRepWords(word.key, (value.repetitiveWords?.[word.key as keyof typeof value.repetitiveWords] as number || 0) - 1)} className="rounded bg-red-100 px-2 py-1 text-xs">-</button>
-              <span className="font-mono text-sm">{value.repetitiveWords?.[word.key as keyof typeof value.repetitiveWords] || 0}</span>
+              <span className="font-mono text-sm">{(value.repetitiveWords?.[word.key as keyof typeof value.repetitiveWords] as number) || 0}</span>
               <button onClick={() => updateRepWords(word.key, (value.repetitiveWords?.[word.key as keyof typeof value.repetitiveWords] as number || 0) + 1)} className="rounded bg-green-100 px-2 py-1 text-xs">+</button>
             </div>
           ))}
