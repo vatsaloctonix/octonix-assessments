@@ -54,6 +54,43 @@ export type VideoAnswers = {
   }>;
 };
 
+// Admin-filled video behavior evaluation (filled after watching videos)
+export type VideoBehaviorEvaluation = {
+  // Common criteria for all videos
+  repetitiveWords?: {
+    like?: number;
+    youKnow?: number;
+    uhh?: number;
+    ummm?: number;
+    custom?: Array<{ word: string; count: number }>;
+  };
+  averageGapSeconds?: number; // Pause duration between sentences
+  tone?: Array<"calm" | "confident" | "nervous" | "professional" | "aggressive" | "monotone">;
+  speed?: number; // 0-10, where 6-7 is ideal
+
+  // Question-specific criteria
+  questionA?: {
+    partedInTwoHalves?: boolean;
+    handMovements?: boolean;
+  };
+  questionB?: {
+    partedInTwoHalves?: boolean;
+    handMovements?: boolean;
+  };
+  questionC?: {
+    startedSpeakingASAP?: boolean;
+    handMovements?: boolean;
+  };
+  questionD?: {
+    partedInTwoQuestions?: boolean;
+    talkedAboutImprovingWeakness?: boolean;
+  };
+  questionE?: {
+    thoughtBeforeAnswering?: boolean;
+    saidItDepends?: boolean;
+  };
+};
+
 export type AllAnswers = {
   personality?: PersonalityAnswers;
   aiUsage?: AiUsageAnswers;
@@ -91,6 +128,7 @@ export type StoredAssessment = {
   };
   ai_evaluations: Record<string, unknown>;
   videos: Record<string, unknown>;
+  video_behavior?: VideoBehaviorEvaluation; // Admin-filled after watching videos
   created_at: string;
   updated_at: string;
   submitted_at: string | null;

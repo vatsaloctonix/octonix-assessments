@@ -34,6 +34,9 @@ alter table public.candidate_assessments enable row level security;
 -- This allows tracking which step the candidate is on for resume functionality
 alter table public.candidate_assessments add column if not exists current_step integer null;
 
+-- Migration: Add video_behavior column for admin video evaluations
+alter table public.candidate_assessments add column if not exists video_behavior jsonb not null default '{}'::jsonb;
+
 -- Video access tokens table for one-time password-protected links
 create table if not exists public.video_access_tokens (
   id uuid primary key default gen_random_uuid(),
