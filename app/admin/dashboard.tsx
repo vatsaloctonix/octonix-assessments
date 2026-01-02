@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Card, Button, Input, Muted, Divider, TinyLabel } from "@/components/ui";
 import type { StoredAssessment } from "@/lib/types";
 
 export default function AdminDashboard() {
+  const pathname = usePathname();
+  const basePath = pathname?.startsWith("/trainer") ? "/trainer" : "/admin";
+
   const [items, setItems] = useState<StoredAssessment[]>([]);
   const [loading, setLoading] = useState(true);
   const [newCandidateLabel, setNewCandidateLabel] = useState("");
@@ -192,7 +196,7 @@ export default function AdminDashboard() {
                     className="cursor-pointer"
                     onClick={(e) => e.stopPropagation()}
                   />
-                  <a href={`/admin/${item.id}`} className="flex-1">
+                  <a href={`${basePath}/${item.id}`} className="flex-1">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <div className="text-sm font-semibold">{item.admin_label ?? "Candidate"}</div>
