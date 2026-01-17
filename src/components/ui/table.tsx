@@ -4,7 +4,8 @@
  */
 
 import { cn } from '@/lib/utils';
-import { ReactNode } from 'react';
+// changed [from import { ReactNode } to import { ReactNode, TdHTMLAttributes }]
+import { ReactNode, TdHTMLAttributes } from 'react';
 
 interface TableProps {
   children: ReactNode;
@@ -73,15 +74,21 @@ export function TableHead({
   );
 }
 
+// changed [from inline props type to TableCellProps with td attributes]
+type TableCellProps = TdHTMLAttributes<HTMLTableCellElement> & {
+  children: ReactNode;
+  className?: string;
+};
+
+// changed [from inline props destructure to TableCellProps]
 export function TableCell({
   children,
   className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+  ...props
+}: TableCellProps) {
   return (
-    <td className={cn('px-4 py-3 text-sm text-slate-300', className)}>
+    // changed [from td without props to td with spread props]
+    <td {...props} className={cn('px-4 py-3 text-sm text-slate-300', className)}>
       {children}
     </td>
   );
