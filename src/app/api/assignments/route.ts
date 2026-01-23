@@ -74,7 +74,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Create assignment(s)
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();
