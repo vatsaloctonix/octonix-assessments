@@ -17,9 +17,10 @@ export const metadata: Metadata = {
   description: 'Training platform for trainers, candidates, and staff',
   icons: {
     icon: [
+      { url: '/favicon.ico', sizes: 'any' },
       { url: '/icon.png', type: 'image/png', sizes: '64x64' },
     ],
-    shortcut: '/icon.png',
+    shortcut: '/favicon.ico',
     apple: '/icon.png',
   },
 };
